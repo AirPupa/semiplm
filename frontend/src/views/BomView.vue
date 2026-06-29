@@ -1,18 +1,20 @@
 <template>
   <div class="grid-main" v-loading="loading">
-    <div class="panel">
+    <div class="panel list-panel">
       <div class="toolbar">
         <div>
           <strong>BOM 对象管理</strong>
           <span class="muted"> · 表头、结构明细、审核发布与 ERP 下发联动</span>
         </div>
         <div class="toolbar-actions">
+          <el-input v-model="keyword" placeholder="搜索产品型号/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
           <el-button v-if="can('bom')" :disabled="!selected" @click="openTransform">转 PBOM/MBOM</el-button>
           <el-button :disabled="!selected" @click="openCompare">BOM 比较</el-button>
           <el-button v-if="can('bom')" type="primary" :icon="Plus" @click="openBomCreate">新建 BOM</el-button>
         </div>
       </div>
-      <el-table :data="boms" highlight-current-row @current-change="selectBom" height="680">
+      <div class="list-table-wrap">
+      <el-table :data="items" highlight-current-row @current-change="selectBom" height="100%">
         <el-table-column prop="product_model" label="产品型号" width="130" fixed />
         <el-table-column prop="product_name" label="产品名称" min-width="180" />
         <el-table-column prop="type" label="类型" width="90" />
@@ -40,9 +42,13 @@
           </template>
         </el-table-column>
       </el-table>
+      </div>
+      <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+        <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
+      </div>
     </div>
 
-    <div class="panel">
+    <div class="panel detail-panel">
       <div class="toolbar">
         <div>
           <strong>{{ selected?.product_model || '选择 BOM' }} 结构明细</strong>
@@ -234,7 +240,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import {
@@ -255,10 +261,10 @@ import {
 } from '../api'
 import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
+import { useListPage } from '../composables/useListPage'
 
-const loading = ref(true)
 const { can, currentUser, refreshSession } = useAuth()
-const boms = ref<any[]>([])
+const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getBoms)
 const products = ref<any[]>([])
 const processSteps = ref<any[]>([])
 const selected = ref<any>()
@@ -280,8 +286,8 @@ const whereUsedRows = ref<any[]>([])
 const whereUsedMaterial = ref('')
 
 async function loadBoms(keepId?: number) {
-  boms.value = await getBoms()
-  selected.value = boms.value.find((item) => item.id === keepId) || boms.value[0]
+  await loadData()
+  selected.value = (items.value || []).find((item) => item.id === keepId) || (items.value || [])[0]
   await loadProcessSteps()
 }
 
@@ -387,7 +393,7 @@ async function approve(row: any) {
 
 const compareOptions = computed(() => {
   if (!selected.value) return []
-  return boms.value.filter((item) => item.id !== selected.value.id && item.product_id === selected.value.product_id)
+  return (items.value || []).filter((item) => item.id !== selected.value.id && item.product_id === selected.value.product_id)
 })
 
 function openTransform() {
@@ -430,8 +436,7 @@ async function openWhereUsed(row: any) {
 
 onMounted(async () => {
   await refreshSession()
-  products.value = await getProducts()
+  products.value = (await getProducts()).items
   await loadBoms()
-  loading.value = false
 })
 </script>

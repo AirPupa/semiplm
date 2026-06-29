@@ -1,14 +1,19 @@
 <template>
   <div class="grid-main" v-loading="loading">
-    <div class="panel">
+    <div class="panel list-panel">
       <div class="toolbar">
         <div>
           <strong>工程变更</strong>
           <span class="muted"> · ECR / ECN / ECA 变更闭环</span>
         </div>
-        <el-button v-if="can('change')" type="primary" :icon="Plus" @click="openCreate">新建变更</el-button>
+        <div class="toolbar-actions">
+          <el-input v-model="keyword" placeholder="搜索变更单号/标题" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
+          <el-button :icon="Operation" @click="openBatchControl">批次控制</el-button>
+          <el-button v-if="can('change')" type="primary" :icon="Plus" @click="openCreate">新建变更</el-button>
+        </div>
       </div>
-      <el-table :data="changes" highlight-current-row @current-change="selectChange" height="680">
+      <div class="list-table-wrap">
+      <el-table :data="items" highlight-current-row @current-change="selectChange" height="100%">
         <el-table-column prop="change_no" label="变更单号" width="180" fixed />
         <el-table-column prop="title" label="标题" min-width="220" />
         <el-table-column prop="product_model" label="型号" width="130" />
@@ -23,8 +28,12 @@
           </template>
         </el-table-column>
       </el-table>
+      </div>
+      <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+        <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
+      </div>
     </div>
-    <div class="panel">
+    <div class="panel detail-panel">
       <div class="panel-title">{{ selected?.change_no || '变更详情' }}</div>
       <template v-if="selected">
         <el-descriptions :column="2" border size="small">
@@ -115,6 +124,11 @@
             <el-table-column prop="effectivity_scope" label="生效范围" width="110" />
             <el-table-column prop="effective_date" label="生效日期" width="110" />
             <el-table-column prop="effective_batch" label="生效批次" width="140" />
+            <el-table-column prop="release_gate_status" label="发布门" width="110">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.release_gate_status === '可提交' ? 'success' : 'warning'">{{ row.release_gate_status }}</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="owner" label="负责人" width="90" />
             <el-table-column label="操作" width="80" fixed="right">
               <template #default="{ row }">
@@ -126,7 +140,7 @@
       </template>
     </div>
 
-    <el-dialog v-model="archiveDialogVisible" title="版本归档详情" width="640px">
+    <el-dialog v-model="archiveDialogVisible" title="版本归档详情" width="760px">
       <template v-if="archiveDetail.action_no">
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="动作编号">{{ archiveDetail.action_no }}</el-descriptions-item>
@@ -139,13 +153,124 @@
           <el-descriptions-item label="生效范围">{{ archiveDetail.effectivity_scope }}</el-descriptions-item>
           <el-descriptions-item label="生效日期">{{ archiveDetail.effective_date }}</el-descriptions-item>
           <el-descriptions-item label="生效批次">{{ archiveDetail.effective_batch }}</el-descriptions-item>
+          <el-descriptions-item label="变更状态">{{ archiveDetail.change_status || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="发布门">
+            <el-tag size="small" :type="archiveDetail.release_gate_status === '可提交' ? 'success' : 'warning'">{{ archiveDetail.release_gate_status || '-' }}</el-tag>
+          </el-descriptions-item>
           <el-descriptions-item label="负责人">{{ archiveDetail.owner }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{ archiveDetail.status }}</el-descriptions-item>
+          <el-descriptions-item label="发布校验" :span="2">{{ archiveDetail.release_gate_message || '-' }}</el-descriptions-item>
         </el-descriptions>
-        <div v-if="archiveDetail.generated_url" style="margin-top:16px;text-align:center">
-          <el-button type="primary" @click="navigateTo(archiveDetail.generated_url)">查看生成对象</el-button>
+        <div v-if="archiveDetail.target_id" style="margin-top:16px">
+          <div class="panel-title" style="margin-bottom:8px">版本链路追溯</div>
+          <el-table :data="versionHistory" size="small" empty-text="暂无版本历史" v-loading="versionLoading">
+            <el-table-column prop="version" label="版本" width="80" />
+            <el-table-column prop="status" label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.is_current ? 'primary' : row.status === '已发布' ? 'success' : 'info'">
+                  {{ row.status }}{{ row.is_current ? ' · 当前' : '' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="change_no" label="生成变更单" width="150" show-overflow-tooltip />
+            <el-table-column prop="eca_action_no" label="ECA 动作" width="130" show-overflow-tooltip />
+            <el-table-column prop="eca_effectivity_type" label="生效方式" width="90" />
+            <el-table-column prop="eca_effective_batch" label="生效批次" width="120" show-overflow-tooltip />
+            <el-table-column prop="release_gate_status" label="发布门" width="100">
+              <template #default="{ row }">
+                <el-tag v-if="row.release_gate_status" size="small" :type="row.release_gate_status === '可提交' ? 'success' : 'warning'">{{ row.release_gate_status }}</el-tag>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="effective_date" label="生效日期" width="100" />
+            <el-table-column prop="release_date" label="发布日期" width="100" />
+          </el-table>
+        </div>
+        <div style="margin-top:16px;text-align:center">
+          <el-button v-if="archiveDetail.generated_url" type="primary" @click="navigateTo(archiveDetail.generated_url)">查看生成对象</el-button>
+          <el-button v-if="archiveDetail.target_url" @click="navigateTo(archiveDetail.target_url)">查看来源对象</el-button>
         </div>
       </template>
+    </el-dialog>
+
+    <el-dialog v-model="batchDialogVisible" title="生效批次控制" width="900px" top="5vh">
+      <div style="margin-bottom:12px;display:flex;gap:12px;align-items:center">
+        <span style="font-weight:600">选择产品</span>
+        <el-select v-model="batchProductId" filterable placeholder="选择产品查看批次总览" style="width:280px" @change="loadBatchData">
+          <el-option v-for="product in products" :key="product.id" :label="product.model" :value="product.id" />
+        </el-select>
+      </div>
+      <div v-loading="batchLoading">
+        <template v-if="batchData.batches && batchData.batches.length">
+          <div class="panel-title" style="margin-bottom:8px">批次总览（{{ batchData.product_model }}）</div>
+          <el-table :data="batchData.batches" size="small" border>
+            <el-table-column prop="effective_batch" label="生效批次" width="150" fixed />
+            <el-table-column prop="effectivity_type" label="生效方式" width="100" />
+            <el-table-column prop="effective_date" label="生效日期" width="110" />
+            <el-table-column label="关联变更" min-width="160">
+              <template #default="{ row }">
+                <span v-for="(no, idx) in row.change_nos" :key="no">
+                  <a v-if="idx < 3" href="javascript:void(0)" class="archive-link" @click="jumpToChange(no)">{{ no }}</a><span v-if="idx < Math.min(row.change_nos.length, 3) - 1">, </span>
+                  <span v-if="row.change_nos.length > 3" class="muted"> 等{{ row.change_nos.length }}张</span>
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="action_count" label="动作数" width="80" />
+            <el-table-column prop="done_count" label="已完成" width="80" />
+            <el-table-column prop="pending_count" label="待执行" width="80" />
+            <el-table-column label="批次状态" width="100" fixed="right">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.batch_status === '已生效' ? 'success' : row.batch_status === '执行中' ? 'warning' : 'info'">{{ row.batch_status }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="80" fixed="right">
+              <template #default="{ row }">
+                <el-button size="small" @click="expandBatch(row)">详情</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-collapse v-model="expandedBatches" style="margin-top:12px">
+            <el-collapse-item v-for="batch in batchData.batches" :key="batch.effective_batch" :name="batch.effective_batch">
+              <template #title>
+                <span style="font-weight:600">{{ batch.effective_batch }}</span>
+                <span class="muted" style="margin-left:8px">{{ batch.action_count }} 个动作 · {{ batch.batch_status }}</span>
+              </template>
+              <el-table :data="batch.actions" size="small">
+                <el-table-column prop="action_no" label="动作编号" width="170" />
+                <el-table-column prop="action_type" label="动作" width="90" />
+                <el-table-column prop="target_type" label="对象类型" width="80" />
+                <el-table-column prop="target_object" label="对象" min-width="160" show-overflow-tooltip />
+                <el-table-column prop="generated_object_no" label="生成对象" min-width="140" show-overflow-tooltip />
+                <el-table-column prop="change_no" label="变更单" width="140" />
+                <el-table-column prop="status" label="状态" width="80">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="row.status === '已完成' ? 'success' : 'warning'">{{ row.status }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="发布门" width="90">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.generated_object_no" size="small" :type="row.release_gate_status ? 'success' : 'warning'">{{ row.release_gate_status ? '可提交' : '待闭环' }}</el-tag>
+                    <span v-else>-</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-collapse-item>
+          </el-collapse>
+        </template>
+        <template v-else-if="batchData.no_batch_actions && batchData.no_batch_actions.length">
+          <div class="panel-title" style="margin-bottom:8px">日期生效动作（无批次）</div>
+          <el-table :data="batchData.no_batch_actions" size="small">
+            <el-table-column prop="action_no" label="动作编号" width="170" />
+            <el-table-column prop="change_no" label="变更单" width="140" />
+            <el-table-column prop="target_type" label="对象类型" width="80" />
+            <el-table-column prop="target_object" label="对象" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="effective_date" label="生效日期" width="100" />
+            <el-table-column prop="status" label="状态" width="80" />
+          </el-table>
+        </template>
+        <el-empty v-else-if="batchProductId" description="该产品暂无生效批次数据" />
+        <el-empty v-else description="请选择产品查看批次总览" />
+      </div>
     </el-dialog>
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑变更' : '新建变更'" width="760px">
@@ -262,7 +387,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from '@element-plus/icons-vue'
+import { Operation, Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -274,8 +399,12 @@ import {
   createChangeImpact,
   deleteChange,
   deleteChangeImpact,
+  getBomVersionHistory,
   getChangeRevisionArchive,
   getChanges,
+  getDocumentVersionHistory,
+  getProductEffectivityBatches,
+  getProcessRouteVersionHistory,
   getProducts,
   submitChange,
   updateChange,
@@ -284,11 +413,11 @@ import {
 } from '../api'
 import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
+import { useListPage } from '../composables/useListPage'
 
-const loading = ref(true)
 const router = useRouter()
 const { can, currentUser, refreshSession } = useAuth()
-const changes = ref<any[]>([])
+const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getChanges)
 const products = ref<any[]>([])
 const selected = ref<any>()
 const revisionArchive = ref<any[]>([])
@@ -324,6 +453,15 @@ const emptyAction = {
 }
 const actionForm = ref<any>({ ...emptyAction })
 
+const batchDialogVisible = ref(false)
+const batchProductId = ref<number | undefined>(undefined)
+const batchData = ref<any>({})
+const batchLoading = ref(false)
+const expandedBatches = ref<string[]>([])
+
+const versionHistory = ref<any[]>([])
+const versionLoading = ref(false)
+
 function todayText() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -332,14 +470,72 @@ function navigateTo(url: string) {
   router.push(url)
 }
 
-function showArchiveDetail(row: any) {
+async function showArchiveDetail(row: any) {
   archiveDetail.value = row
   archiveDialogVisible.value = true
+  versionHistory.value = []
+  versionLoading.value = true
+  try {
+    if (row.target_type === 'BOM' && row.target_id) {
+      versionHistory.value = await getBomVersionHistory(row.target_id)
+    } else if (row.target_type === '文档' && row.target_id) {
+      versionHistory.value = await getDocumentVersionHistory(row.target_id)
+    } else if (row.target_type === '工艺路线' && row.target_id) {
+      versionHistory.value = await getProcessRouteVersionHistory(row.target_id)
+    }
+  } catch {
+    versionHistory.value = []
+  } finally {
+    versionLoading.value = false
+  }
+}
+
+function openBatchControl() {
+  batchDialogVisible.value = true
+  if (!batchProductId.value && products.value.length) {
+    batchProductId.value = products.value[0].id
+    loadBatchData()
+  }
+}
+
+async function loadBatchData() {
+  if (!batchProductId.value) {
+    batchData.value = {}
+    return
+  }
+  batchLoading.value = true
+  expandedBatches.value = []
+  try {
+    batchData.value = await getProductEffectivityBatches(batchProductId.value)
+  } catch {
+    batchData.value = {}
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+function expandBatch(row: any) {
+  const idx = expandedBatches.value.indexOf(row.effective_batch)
+  if (idx >= 0) {
+    expandedBatches.value.splice(idx, 1)
+  } else {
+    expandedBatches.value.push(row.effective_batch)
+  }
+}
+
+async function jumpToChange(changeNo: string) {
+  batchDialogVisible.value = false
+  const list = items.value || []
+  const target = list.find((item) => item.change_no === changeNo)
+  if (target) {
+    await selectChange(target)
+  }
 }
 
 async function loadChanges(selectedId?: number) {
-  changes.value = await getChanges()
-  selected.value = changes.value.find((item) => item.id === selectedId) || changes.value[0]
+  await loadData()
+  const list = items.value || []
+  selected.value = list.find((item) => item.id === selectedId) || list[0]
   revisionArchive.value = selected.value ? await getChangeRevisionArchive(selected.value.id) : []
 }
 
@@ -355,7 +551,7 @@ function openCreate() {
   form.value = {
     ...emptyForm,
     product_id: product?.id,
-    change_no: product ? `ECR-${product.model}-${String(changes.value.length + 1).padStart(3, '0')}` : '',
+    change_no: product ? `ECR-${product.model}-${String((items.value || []).length + 1).padStart(3, '0')}` : '',
     owner: currentUser.value?.display_name || '',
   }
   dialogVisible.value = true
@@ -486,9 +682,8 @@ async function closeAction(row: any) {
 
 onMounted(async () => {
   await refreshSession()
-  products.value = await getProducts()
+  products.value = (await getProducts()).items
   await loadChanges()
-  loading.value = false
 })
 </script>
 

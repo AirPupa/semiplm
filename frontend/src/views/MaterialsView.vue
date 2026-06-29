@@ -1,36 +1,49 @@
 <template>
-  <div class="panel" v-loading="loading">
+  <div class="panel list-panel" v-loading="loading">
     <div class="toolbar">
       <div>
         <strong>物料主数据</strong>
         <span class="muted"> · 衬底、外延、Mask、工艺材料与测试治具统一编码</span>
       </div>
       <div class="toolbar-actions">
-        <el-input v-model="keyword" placeholder="搜索物料编码/名称" :prefix-icon="Search" clearable />
+        <el-input v-model="keyword" placeholder="搜索物料编码/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
         <el-button v-if="can('material')" type="primary" :icon="Plus" @click="openCreate">新增物料</el-button>
       </div>
     </div>
-    <el-table :data="filteredMaterials" stripe height="680">
-      <el-table-column prop="code" label="物料编码" width="150" fixed />
-      <el-table-column prop="name" label="物料名称" min-width="180" />
-      <el-table-column prop="category" label="类别" width="130" />
-      <el-table-column prop="specification" label="规格/参数" min-width="220" />
-      <el-table-column prop="supplier" label="供应商" width="140" />
-      <el-table-column prop="risk_level" label="风险" width="90">
-        <template #default="{ row }">
-          <el-tag :type="row.risk_level === '高' ? 'danger' : row.risk_level === '中' ? 'warning' : 'success'" size="small">
-            {{ row.risk_level }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="lifecycle" label="状态" width="100" />
-      <el-table-column label="操作" width="150" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" :disabled="!can('material')" @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" type="danger" :disabled="!can('material')" @click="remove(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="list-table-wrap">
+      <el-table :data="items" height="100%">
+        <el-table-column prop="code" label="物料编码" width="150" fixed />
+        <el-table-column prop="name" label="物料名称" min-width="180" />
+        <el-table-column prop="category" label="类别" width="130" />
+        <el-table-column prop="specification" label="规格/参数" min-width="220" />
+        <el-table-column prop="supplier" label="供应商" width="140" />
+        <el-table-column prop="risk_level" label="风险" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.risk_level === '高' ? 'danger' : row.risk_level === '中' ? 'warning' : 'success'" size="small">
+              {{ row.risk_level }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="lifecycle" label="状态" width="100" />
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" :disabled="!can('material')" @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" type="danger" :disabled="!can('material')" @click="remove(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+    <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+      <el-pagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :total="pagination.total"
+        :page-sizes="[20, 50, 100, 200]"
+        layout="total, sizes, prev, pager, next, jumper"
+        @current-change="onPageChange"
+        @size-change="onSizeChange"
+      />
+    </div>
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑物料' : '新增物料'" width="640px">
       <el-form :model="form" label-width="90px">
         <div class="form-grid">
@@ -67,28 +80,17 @@
 <script setup lang="ts">
 import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { createMaterial, deleteMaterial, getMaterials, updateMaterial } from '../api'
 import { useAuth } from '../auth'
+import { useListPage } from '../composables/useListPage'
 
-const loading = ref(true)
 const { can, refreshSession } = useAuth()
-const keyword = ref('')
-const materials = ref<any[]>([])
+const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getMaterials)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const emptyForm = { code: '', name: '', category: '', specification: '', supplier: '', risk_level: '低', lifecycle: '有效' }
 const form = ref<any>({ ...emptyForm })
-
-const filteredMaterials = computed(() => {
-  const text = keyword.value.trim().toLowerCase()
-  if (!text) return materials.value
-  return materials.value.filter((item) => `${item.code} ${item.name} ${item.category}`.toLowerCase().includes(text))
-})
-
-async function loadMaterials() {
-  materials.value = await getMaterials()
-}
 
 function openCreate() {
   if (!can('material')) return
@@ -113,7 +115,7 @@ async function save() {
   }
   ElMessage.success('物料已保存')
   dialogVisible.value = false
-  await loadMaterials()
+  await loadData()
 }
 
 async function remove(row: any) {
@@ -121,12 +123,11 @@ async function remove(row: any) {
   await ElMessageBox.confirm(`确认删除物料 ${row.code}？已被 BOM 使用的物料会被后端阻止删除。`, '删除确认', { type: 'warning' })
   await deleteMaterial(row.id)
   ElMessage.success('物料已删除')
-  await loadMaterials()
+  await loadData()
 }
 
 onMounted(async () => {
   await refreshSession()
-  await loadMaterials()
-  loading.value = false
+  await loadData()
 })
 </script>

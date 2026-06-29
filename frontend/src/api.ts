@@ -21,8 +21,8 @@ export async function getDashboard() {
   return data
 }
 
-export async function getProducts() {
-  const { data } = await client.get('/api/products')
+export async function getProducts(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/products', { params })
   return data
 }
 
@@ -56,8 +56,8 @@ export async function createProductVersion(productId: string | number, payload: 
   return data
 }
 
-export async function getBoms() {
-  const { data } = await client.get('/api/boms')
+export async function getBoms(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/boms', { params })
   return data
 }
 
@@ -116,8 +116,8 @@ export async function getBomWhereUsed(materialCode: string) {
   return data
 }
 
-export async function getMaterials() {
-  const { data } = await client.get('/api/materials')
+export async function getMaterials(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/materials', { params })
   return data
 }
 
@@ -136,8 +136,8 @@ export async function deleteMaterial(id: number) {
   return data
 }
 
-export async function getDocuments() {
-  const { data } = await client.get('/api/documents')
+export async function getDocuments(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/documents', { params })
   return data
 }
 
@@ -166,8 +166,8 @@ export async function approveDocument(id: number) {
   return data
 }
 
-export async function getRequirements() {
-  const { data } = await client.get('/api/requirements')
+export async function getRequirements(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/requirements', { params })
   return data
 }
 
@@ -186,8 +186,13 @@ export async function deleteRequirement(id: number) {
   return data
 }
 
-export async function getBaselines() {
-  const { data } = await client.get('/api/baselines')
+export async function getRequirementTrace(id: number) {
+  const { data } = await client.get(`/api/requirements/${id}/trace`)
+  return data
+}
+
+export async function getBaselines(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/baselines', { params })
   return data
 }
 
@@ -196,8 +201,23 @@ export async function getWorkbench() {
   return data
 }
 
-export async function getWorkflowTasks() {
-  const { data } = await client.get('/api/workflow-tasks')
+export async function getWorkbenchCalendar(month: string) {
+  const { data } = await client.get('/api/workbench/calendar', { params: { month } })
+  return data
+}
+
+export async function getWorkbenchNotifications(params?: { action?: string; limit?: number }) {
+  const { data } = await client.get('/api/workbench/notifications', { params })
+  return data
+}
+
+export async function getClosureCheck() {
+  const { data } = await client.get('/api/workbench/closure-check')
+  return data
+}
+
+export async function getWorkflowTasks(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/workflow-tasks', { params })
   return data
 }
 
@@ -221,8 +241,8 @@ export async function withdrawWorkflowInstance(id: number, payload: any) {
   return data
 }
 
-export async function getRoutes() {
-  const { data } = await client.get('/api/process-routes')
+export async function getRoutes(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/process-routes', { params })
   return data
 }
 
@@ -271,8 +291,8 @@ export async function getProductProcessSteps(productId: number) {
   return data
 }
 
-export async function getChanges() {
-  const { data } = await client.get('/api/changes')
+export async function getChanges(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/changes', { params })
   return data
 }
 
@@ -336,8 +356,28 @@ export async function closeChangeAction(id: number, payload: any) {
   return data
 }
 
-export async function getChangeActions() {
-  const { data } = await client.get('/api/change-actions')
+export async function getChangeActions(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/change-actions', { params })
+  return data
+}
+
+export async function getProductEffectivityBatches(productId: number) {
+  const { data } = await client.get(`/api/products/${productId}/effectivity-batches`)
+  return data
+}
+
+export async function getBomVersionHistory(bomId: number) {
+  const { data } = await client.get(`/api/boms/${bomId}/version-history`)
+  return data
+}
+
+export async function getDocumentVersionHistory(documentId: number) {
+  const { data } = await client.get(`/api/documents/${documentId}/version-history`)
+  return data
+}
+
+export async function getProcessRouteVersionHistory(routeId: number) {
+  const { data } = await client.get(`/api/process-routes/${routeId}/version-history`)
   return data
 }
 
@@ -371,23 +411,23 @@ export async function retryIntegrationJob(id: number, payload: any) {
   return data
 }
 
-export async function getProjects() {
-  const { data } = await client.get('/api/projects')
+export async function getProjects(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/projects', { params })
   return data
 }
 
-export async function getQuality() {
-  const { data } = await client.get('/api/quality')
+export async function getQuality(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/quality', { params })
   return data
 }
 
-export async function getAdminRoles() {
-  const { data } = await client.get('/api/admin/roles')
+export async function getAdminRoles(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/admin/roles', { params })
   return data
 }
 
-export async function getOrganizations() {
-  const { data } = await client.get('/api/admin/organizations')
+export async function getOrganizations(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/admin/organizations', { params })
   return data
 }
 
@@ -421,8 +461,8 @@ export async function deleteAdminRole(id: number) {
   return data
 }
 
-export async function getCodingRules() {
-  const { data } = await client.get('/api/admin/foundation/coding-rules')
+export async function getCodingRules(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/admin/foundation/coding-rules', { params })
   return data
 }
 
@@ -441,8 +481,8 @@ export async function deleteCodingRule(id: number) {
   return data
 }
 
-export async function getCategoryTemplates() {
-  const { data } = await client.get('/api/admin/foundation/categories')
+export async function getCategoryTemplates(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/admin/foundation/categories', { params })
   return data
 }
 
@@ -476,8 +516,8 @@ export async function deleteAttributeTemplate(id: number) {
   return data
 }
 
-export async function getLifecycleTemplates() {
-  const { data } = await client.get('/api/admin/foundation/lifecycles')
+export async function getLifecycleTemplates(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/admin/foundation/lifecycles', { params })
   return data
 }
 
@@ -511,8 +551,8 @@ export async function deleteLifecycleState(id: number) {
   return data
 }
 
-export async function getDictionaryItems() {
-  const { data } = await client.get('/api/admin/foundation/dictionaries')
+export async function getDictionaryItems(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/admin/foundation/dictionaries', { params })
   return data
 }
 
@@ -531,8 +571,8 @@ export async function deleteDictionaryItem(id: number) {
   return data
 }
 
-export async function getAdminUsers() {
-  const { data } = await client.get('/api/admin/users')
+export async function getAdminUsers(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/admin/users', { params })
   return data
 }
 
@@ -551,8 +591,8 @@ export async function deleteAdminUser(id: number) {
   return data
 }
 
-export async function getWorkflowTemplates() {
-  const { data } = await client.get('/api/admin/workflows')
+export async function getWorkflowTemplates(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/admin/workflows', { params })
   return data
 }
 
@@ -586,8 +626,8 @@ export async function deleteWorkflowNode(id: number) {
   return data
 }
 
-export async function getIntegrationEndpoints() {
-  const { data } = await client.get('/api/admin/integration-endpoints')
+export async function getIntegrationEndpoints(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/admin/integration-endpoints', { params })
   return data
 }
 
@@ -601,8 +641,8 @@ export async function updateIntegrationEndpoint(id: number, payload: any) {
   return data
 }
 
-export async function getSystemParameters() {
-  const { data } = await client.get('/api/admin/foundation/system-parameters')
+export async function getSystemParameters(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/admin/foundation/system-parameters', { params })
   return data
 }
 
@@ -621,13 +661,33 @@ export async function deleteSystemParameter(id: number) {
   return data
 }
 
-export async function getAuditLogs(params?: { object_type?: string; action?: string; limit?: number }) {
+export async function getAuditLogs(params?: { page?: number; page_size?: number; keyword?: string; object_type?: string; action?: string }) {
   const { data } = await client.get('/api/audit-logs', { params })
   return data
 }
 
-export async function getSubstituteMaterials() {
-  const { data } = await client.get('/api/substitute-materials')
+export async function getReportCompleteness() {
+  const { data } = await client.get('/api/reports/completeness')
+  return data
+}
+
+export async function getReportChangeCycle() {
+  const { data } = await client.get('/api/reports/change-cycle')
+  return data
+}
+
+export async function getReportProjectProgress() {
+  const { data } = await client.get('/api/reports/project-progress')
+  return data
+}
+
+export async function getReportQualityClosure() {
+  const { data } = await client.get('/api/reports/quality-closure')
+  return data
+}
+
+export async function getSubstituteMaterials(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/substitute-materials', { params })
   return data
 }
 
@@ -646,8 +706,8 @@ export async function deleteSubstituteMaterial(id: number) {
   return data
 }
 
-export async function getSuppliers() {
-  const { data } = await client.get('/api/suppliers')
+export async function getSuppliers(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/suppliers', { params })
   return data
 }
 
@@ -681,8 +741,8 @@ export async function deleteProject(id: number) {
   return data
 }
 
-export async function getProjectTemplates() {
-  const { data } = await client.get('/api/project-templates')
+export async function getProjectTemplates(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/project-templates', { params })
   return data
 }
 
@@ -741,8 +801,8 @@ export async function deleteProjectRisk(id: number) {
   return data
 }
 
-export async function getQualityCAPAs() {
-  const { data } = await client.get('/api/quality/capas')
+export async function getQualityCAPAs(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/quality/capas', { params })
   return data
 }
 
@@ -766,8 +826,88 @@ export async function createCAPAFromIssue(issueId: number) {
   return data
 }
 
-export async function getProblemReports() {
-  const { data } = await client.get('/api/problem-reports')
+export async function createQualityIssue(payload: any) {
+  const { data } = await client.post('/api/quality/issues', payload)
+  return data
+}
+
+export async function updateQualityIssue(id: number, payload: any) {
+  const { data } = await client.put(`/api/quality/issues/${id}`, payload)
+  return data
+}
+
+export async function deleteQualityIssue(id: number) {
+  const { data } = await client.delete(`/api/quality/issues/${id}`)
+  return data
+}
+
+export async function closeQualityIssue(id: number, payload: any) {
+  const { data } = await client.post(`/api/quality/issues/${id}/close`, payload)
+  return data
+}
+
+export async function triggerEcrFromIssue(issueId: number) {
+  const { data } = await client.post(`/api/quality/issues/${issueId}/trigger-ecr`)
+  return data
+}
+
+export async function closeQualityCAPA(id: number, payload: any) {
+  const { data } = await client.post(`/api/quality/capas/${id}/close`, payload)
+  return data
+}
+
+export async function getProjectTasks(projectId: number) {
+  const { data } = await client.get(`/api/projects/${projectId}/tasks`)
+  return data
+}
+
+export async function createProjectTask(projectId: number, payload: any) {
+  const { data } = await client.post(`/api/projects/${projectId}/tasks`, payload)
+  return data
+}
+
+export async function updateProjectTask(id: number, payload: any) {
+  const { data } = await client.put(`/api/project-tasks/${id}`, payload)
+  return data
+}
+
+export async function deleteProjectTask(id: number) {
+  const { data } = await client.delete(`/api/project-tasks/${id}`)
+  return data
+}
+
+export async function advanceProjectPhase(projectId: number, payload: any) {
+  const { data } = await client.post(`/api/projects/${projectId}/advance-phase`, payload)
+  return data
+}
+
+export async function getQualityReports(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/quality/reports', { params })
+  return data
+}
+
+export async function createQualityReport(payload: any) {
+  const { data } = await client.post('/api/quality/reports', payload)
+  return data
+}
+
+export async function archiveQualityReportFromIssues(payload: any) {
+  const { data } = await client.post('/api/quality/reports/archive-from-issues', payload)
+  return data
+}
+
+export async function updateQualityReport(id: number, payload: any) {
+  const { data } = await client.put(`/api/quality/reports/${id}`, payload)
+  return data
+}
+
+export async function deleteQualityReport(id: number) {
+  const { data } = await client.delete(`/api/quality/reports/${id}`)
+  return data
+}
+
+export async function getProblemReports(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/problem-reports', { params })
   return data
 }
 
@@ -786,8 +926,8 @@ export async function deleteProblemReport(id: number) {
   return data
 }
 
-export async function getProcessParameters() {
-  const { data } = await client.get('/api/process-parameters')
+export async function getProcessParameters(params?: { page?: number; page_size?: number; keyword?: string }) {
+  const { data } = await client.get('/api/process-parameters', { params })
   return data
 }
 

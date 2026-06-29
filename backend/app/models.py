@@ -251,6 +251,7 @@ class Product(Base):
     process_routes: Mapped[list["ProcessRoute"]] = relationship(back_populates="product")
     changes: Mapped[list["Change"]] = relationship(back_populates="product")
     quality_lots: Mapped[list["QualityLot"]] = relationship(back_populates="product")
+    requirements: Mapped[list["Requirement"]] = relationship(back_populates="product")
 
 
 class ProductVersion(Base):
@@ -524,6 +525,8 @@ class ProjectDeliverable(Base):
     due_date: Mapped[str] = mapped_column(String(30), default="")
     completed_at: Mapped[str] = mapped_column(String(30), default="")
     description: Mapped[str] = mapped_column(Text, default="")
+    object_type: Mapped[str] = mapped_column(String(40), default="")
+    object_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     project: Mapped["Project"] = relationship(back_populates="deliverables")
 
@@ -610,7 +613,7 @@ class Requirement(Base):
     owner: Mapped[str] = mapped_column(String(80))
     acceptance_criteria: Mapped[str] = mapped_column(Text)
 
-    product: Mapped["Product"] = relationship()
+    product: Mapped["Product"] = relationship(back_populates="requirements")
 
 
 class SystemParameter(Base):
@@ -734,3 +737,23 @@ class ProcessParameter(Base):
     max_value: Mapped[str] = mapped_column(String(80), default="")
     description: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(30), default="启用")
+
+
+class QualityReport(Base):
+    __tablename__ = "quality_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    report_no: Mapped[str] = mapped_column(String(80), unique=True)
+    title: Mapped[str] = mapped_column(String(200))
+    report_type: Mapped[str] = mapped_column(String(60), default="质量归档")
+    product_model: Mapped[str] = mapped_column(String(80), default="")
+    issue_nos: Mapped[str] = mapped_column(String(240), default="")
+    capa_nos: Mapped[str] = mapped_column(String(240), default="")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    root_cause: Mapped[str] = mapped_column(Text, default="")
+    corrective_action: Mapped[str] = mapped_column(Text, default="")
+    preventive_action: Mapped[str] = mapped_column(Text, default="")
+    owner: Mapped[str] = mapped_column(String(80), default="")
+    status: Mapped[str] = mapped_column(String(30), default="已归档")
+    archived_at: Mapped[str] = mapped_column(String(30), default="")
+    archived_by: Mapped[str] = mapped_column(String(80), default="")

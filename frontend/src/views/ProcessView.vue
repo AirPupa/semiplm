@@ -1,44 +1,50 @@
 <template>
   <div class="grid-main" v-loading="loading">
-    <div class="panel">
+    <div class="panel list-panel">
       <div class="toolbar">
         <div>
           <strong>工艺路线</strong>
           <span class="muted"> · 路线发布后下发 MES 工艺流程和站点控制</span>
         </div>
         <div class="toolbar-actions">
+          <el-input v-model="keyword" placeholder="搜索路线编号/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
           <el-button :disabled="!can('process')" @click="openRouteCreate">新增路线</el-button>
           <el-button :disabled="!can('process') || !selected || selected.status === '已发布'" @click="submit(selected)">提交</el-button>
           <el-button type="primary" :disabled="!can(['approval', 'process']) || !selected || selected.status === '已发布'" @click="approve(selected)">发布</el-button>
         </div>
       </div>
-      <el-table :data="routes" highlight-current-row @current-change="selected = $event" height="680">
-        <el-table-column prop="route_no" label="路线编号" width="180" />
-        <el-table-column prop="product_model" label="型号" width="130" />
-        <el-table-column prop="name" label="路线名称" min-width="210" />
-        <el-table-column prop="version" label="版本" width="80" />
-        <el-table-column prop="source_route_id" label="来源" width="90">
-          <template #default="{ row }">
-            <span>{{ row.source_route_id ? `#${row.source_route_id}` : '-' }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="90">
-          <template #default="{ row }">
-            <el-tag size="small" :type="row.status === '已发布' ? 'success' : row.status === '审批中' ? 'warning' : 'info'">{{ row.status }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="release_date" label="发布日期" width="110" />
-        <el-table-column label="操作" width="150" fixed="right" class-name="table-actions-cell">
-          <template #default="{ row }">
-            <div class="table-actions">
-              <el-button size="small" :disabled="!can('process') || row.status === '已发布'" @click.stop="openRouteEdit(row)">编辑</el-button>
-              <el-button size="small" type="danger" :disabled="!can('process') || row.status === '已发布'" @click.stop="removeRoute(row)">删除</el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="list-table-wrap">
+        <el-table :data="items" highlight-current-row @current-change="selected = $event" height="100%">
+          <el-table-column prop="route_no" label="路线编号" width="180" />
+          <el-table-column prop="product_model" label="型号" width="130" />
+          <el-table-column prop="name" label="路线名称" min-width="210" />
+          <el-table-column prop="version" label="版本" width="80" />
+          <el-table-column prop="source_route_id" label="来源" width="90">
+            <template #default="{ row }">
+              <span>{{ row.source_route_id ? `#${row.source_route_id}` : '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="90">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.status === '已发布' ? 'success' : row.status === '审批中' ? 'warning' : 'info'">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="release_date" label="发布日期" width="110" />
+          <el-table-column label="操作" width="150" fixed="right" class-name="table-actions-cell">
+            <template #default="{ row }">
+              <div class="table-actions">
+                <el-button size="small" :disabled="!can('process') || row.status === '已发布'" @click.stop="openRouteEdit(row)">编辑</el-button>
+                <el-button size="small" type="danger" :disabled="!can('process') || row.status === '已发布'" @click.stop="removeRoute(row)">删除</el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+        <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
+      </div>
     </div>
-    <div class="panel">
+    <div class="panel detail-panel">
       <div class="toolbar">
         <div>
           <strong>{{ selected?.name || '工序步骤' }}</strong>
@@ -127,6 +133,7 @@
 </template>
 
 <script setup lang="ts">
+import { Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
 import UserSelect from '../components/UserSelect.vue'
@@ -143,9 +150,9 @@ import {
   updateProcessStep,
 } from '../api'
 import { useAuth } from '../auth'
+import { useListPage } from '../composables/useListPage'
 
-const loading = ref(true)
-const routes = ref<any[]>([])
+const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getRoutes)
 const products = ref<any[]>([])
 const selected = ref<any>()
 const { can, currentUser, refreshSession } = useAuth()
@@ -159,8 +166,8 @@ const emptyStep = { sequence: 10, stage: '', operation: '', key_params: '', owne
 const stepForm = ref<any>({ ...emptyStep })
 
 async function loadRoutes(keepId?: number) {
-  routes.value = await getRoutes()
-  selected.value = routes.value.find((item) => item.id === keepId) || routes.value[0]
+  await loadData()
+  selected.value = (items.value || []).find((item) => item.id === keepId) || (items.value || [])[0]
 }
 
 function openRouteCreate() {
@@ -170,7 +177,7 @@ function openRouteCreate() {
   routeForm.value = {
     ...emptyRoute,
     product_id: product?.id,
-    route_no: product ? `ROUTE-${product.model}-${String(routes.value.length + 1).padStart(2, '0')}` : '',
+    route_no: product ? `ROUTE-${product.model}-${String((items.value || []).length + 1).padStart(2, '0')}` : '',
     name: product ? `${product.model} 工艺路线` : '',
     owner: currentUser.value?.display_name || '',
   }
@@ -258,8 +265,7 @@ async function approve(row: any) {
 
 onMounted(async () => {
   await refreshSession()
-  products.value = await getProducts()
+  products.value = (await getProducts()).items
   await loadRoutes()
-  loading.value = false
 })
 </script>

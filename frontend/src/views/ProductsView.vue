@@ -1,34 +1,51 @@
 <template>
-  <div class="panel" v-loading="loading">
+  <div class="panel list-panel" v-loading="loading">
     <div class="toolbar">
       <div>
         <strong>芯片型号台账</strong>
         <span class="muted"> · 产品生命周期、工艺平台、封装与客户料号统一管理</span>
       </div>
-      <el-button v-if="can('product')" type="primary" :icon="Plus" @click="openCreate">新建型号</el-button>
+      <div class="toolbar-actions">
+        <el-input v-model="keyword" placeholder="搜索型号/名称/类型" :prefix-icon="Search" clearable @keyup.enter="handleSearch" @clear="handleSearch" style="width: 220px" />
+        <el-button v-if="can('product')" type="primary" :icon="Plus" @click="openCreate">新建型号</el-button>
+      </div>
     </div>
-    <el-table :data="products" stripe height="680" @row-click="openDetail">
-      <el-table-column prop="model" label="产品型号" width="130" fixed />
-      <el-table-column prop="name" label="产品名称" min-width="190" />
-      <el-table-column prop="product_type" label="类型" width="90" />
-      <el-table-column prop="process_platform" label="工艺平台" width="120" />
-      <el-table-column prop="package_type" label="封装" width="100" />
-      <el-table-column prop="lifecycle" label="生命周期" width="100">
-        <template #default="{ row }"><el-tag size="small">{{ row.lifecycle }}</el-tag></template>
-      </el-table-column>
-      <el-table-column prop="owner" label="负责人" width="90" />
-      <el-table-column prop="readiness" label="资料完整度" width="140">
-        <template #default="{ row }"><el-progress :percentage="row.readiness" :stroke-width="8" /></template>
-      </el-table-column>
-      <el-table-column prop="customer_part_no" label="客户料号" width="150" />
-      <el-table-column prop="latest_release" label="最近发布" width="120" />
-      <el-table-column label="操作" width="150" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" :disabled="!can('product')" @click.stop="openEdit(row)">编辑</el-button>
-          <el-button size="small" type="danger" :disabled="!can('product')" @click.stop="remove(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="list-table-wrap">
+      <el-table :data="products" height="100%" @row-click="openDetail">
+        <el-table-column prop="model" label="产品型号" width="130" fixed />
+        <el-table-column prop="name" label="产品名称" min-width="190" />
+        <el-table-column prop="product_type" label="类型" width="90" />
+        <el-table-column prop="process_platform" label="工艺平台" width="120" />
+        <el-table-column prop="package_type" label="封装" width="100" />
+        <el-table-column prop="lifecycle" label="生命周期" width="100">
+          <template #default="{ row }"><el-tag size="small">{{ row.lifecycle }}</el-tag></template>
+        </el-table-column>
+        <el-table-column prop="owner" label="负责人" width="90" />
+        <el-table-column prop="readiness" label="资料完整度" width="140">
+          <template #default="{ row }"><el-progress :percentage="row.readiness" :stroke-width="8" /></template>
+        </el-table-column>
+        <el-table-column prop="customer_part_no" label="客户料号" width="150" />
+        <el-table-column prop="latest_release" label="最近发布" width="120" />
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" :disabled="!can('product')" @click.stop="openEdit(row)">编辑</el-button>
+            <el-button size="small" type="danger" :disabled="!can('product')" @click.stop="remove(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+    <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+      <el-pagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :total="pagination.total"
+        :page-sizes="[20, 50, 100, 200]"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
+        @size-change="handleSizeChange"
+        @current-change="loadProducts"
+      />
+    </div>
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑型号' : '新建型号'" width="720px">
       <el-form :model="form" label-width="100px">
         <div class="form-grid">
@@ -63,9 +80,9 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createProduct, deleteProduct, getProducts, updateProduct } from '../api'
 import { useAuth } from '../auth'
@@ -74,7 +91,9 @@ import UserSelect from '../components/UserSelect.vue'
 const router = useRouter()
 const { can, currentUser, refreshSession } = useAuth()
 const loading = ref(true)
+const keyword = ref('')
 const products = ref<any[]>([])
+const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const lifecycles = ['设计中', '流片', '验证', '试产', '量产', '冻结', '废止']
@@ -104,7 +123,24 @@ function openDetail(row: any) {
 }
 
 async function loadProducts() {
-  products.value = await getProducts()
+  loading.value = true
+  try {
+    const res = await getProducts({ page: pagination.page, page_size: pagination.pageSize, keyword: keyword.value.trim() })
+    products.value = res.items
+    pagination.total = res.total
+  } finally {
+    loading.value = false
+  }
+}
+
+function handleSearch() {
+  pagination.page = 1
+  loadProducts()
+}
+
+function handleSizeChange() {
+  pagination.page = 1
+  loadProducts()
 }
 
 function openCreate() {
@@ -144,6 +180,25 @@ async function remove(row: any) {
 onMounted(async () => {
   await refreshSession()
   await loadProducts()
-  loading.value = false
 })
 </script>
+
+<style scoped>
+.list-panel {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 82px);
+}
+
+.list-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 0 0;
+}
+</style>

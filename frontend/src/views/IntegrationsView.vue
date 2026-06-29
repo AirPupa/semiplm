@@ -2,7 +2,7 @@
   <div class="grid-main" v-loading="loading">
     <div class="panel">
       <div class="panel-title">变更执行动作</div>
-      <el-table :data="actions" stripe height="680">
+      <el-table :data="actions" height="680">
         <el-table-column prop="action_no" label="ECA 编号" width="210" fixed />
         <el-table-column prop="change_no" label="来源 ECR" width="180" />
         <el-table-column prop="product_model" label="型号" width="130" />
@@ -122,9 +122,9 @@ function actor() {
 async function load() {
   loading.value = true
   const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value))
-  const [actionRows, jobRows, summaryData] = await Promise.all([getChangeActions(), getIntegrationJobs(params), getIntegrationSummary()])
-  actions.value = actionRows
-  jobs.value = jobRows
+  const [actionRows, jobRows, summaryData] = await Promise.all([getChangeActions({ page: 1, page_size: 1000 }), getIntegrationJobs(params), getIntegrationSummary()])
+  actions.value = actionRows.items ?? actionRows
+  jobs.value = jobRows.items ?? jobRows
   summary.value = summaryData
   loading.value = false
 }

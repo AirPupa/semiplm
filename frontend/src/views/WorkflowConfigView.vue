@@ -1,27 +1,35 @@
 <template>
   <div class="grid-main" v-loading="loading">
-    <div class="panel">
+    <div class="panel list-panel">
       <div class="toolbar">
         <div><strong>流程模板</strong><span class="muted"> · 按对象和项目类型配置审批流程</span></div>
-        <el-button type="primary" :icon="Plus" @click="openCreate">新增模板</el-button>
+        <div class="toolbar-actions">
+          <el-input v-model="keyword" placeholder="搜索编码/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
+          <el-button type="primary" :icon="Plus" @click="openCreate">新增模板</el-button>
+        </div>
       </div>
-      <el-table :data="workflows" highlight-current-row @current-change="selected = $event" height="680">
-        <el-table-column prop="code" label="编码" width="150" fixed />
-        <el-table-column prop="name" label="名称" min-width="180" />
-        <el-table-column prop="object_type" label="对象" width="100" />
-        <el-table-column prop="project_type" label="项目类型" width="120" />
-        <el-table-column prop="status" label="状态" width="90" />
-        <el-table-column label="操作" width="150" fixed="right" class-name="table-actions-cell">
-          <template #default="{ row }">
-            <div class="table-actions">
-              <el-button size="small" @click.stop="openEdit(row)">编辑</el-button>
-              <el-button size="small" type="danger" @click.stop="removeTemplate(row)">删除</el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="list-table-wrap">
+        <el-table :data="items" highlight-current-row @current-change="selected = $event" height="100%">
+          <el-table-column prop="code" label="编码" width="150" fixed />
+          <el-table-column prop="name" label="名称" min-width="180" />
+          <el-table-column prop="object_type" label="对象" width="100" />
+          <el-table-column prop="project_type" label="项目类型" width="120" />
+          <el-table-column prop="status" label="状态" width="90" />
+          <el-table-column label="操作" width="150" fixed="right" class-name="table-actions-cell">
+            <template #default="{ row }">
+              <div class="table-actions">
+                <el-button size="small" @click.stop="openEdit(row)">编辑</el-button>
+                <el-button size="small" type="danger" @click.stop="removeTemplate(row)">删除</el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+        <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
+      </div>
     </div>
-    <div class="panel">
+    <div class="panel detail-panel">
       <div class="toolbar">
         <div>
           <strong>{{ selected?.name || '流程节点' }}</strong>
@@ -29,7 +37,7 @@
         </div>
         <el-button :icon="Plus" :disabled="!selected" @click="openNodeCreate">新增节点</el-button>
       </div>
-      <el-table :data="selected?.nodes || []" size="small" height="620">
+      <el-table :data="selected?.nodes || []" size="small">
         <el-table-column prop="sequence" label="序号" width="70" />
         <el-table-column prop="name" label="节点" min-width="130" />
         <el-table-column prop="role_name" label="角色" width="130" />
@@ -76,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
 import {
@@ -89,9 +97,9 @@ import {
   updateWorkflowNode,
   updateWorkflowTemplate,
 } from '../api'
+import { useListPage } from '../composables/useListPage'
 
-const loading = ref(true)
-const workflows = ref<any[]>([])
+const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getWorkflowTemplates)
 const roles = ref<any[]>([])
 const selected = ref<any>()
 const dialogVisible = ref(false)
@@ -104,10 +112,10 @@ const form = ref<any>({ ...emptyForm })
 const nodeForm = ref<any>({ ...emptyNode })
 
 async function loadRows() {
-  const [workflowRows, roleRows] = await Promise.all([getWorkflowTemplates(), getAdminRoles()])
-  workflows.value = workflowRows
-  roles.value = roleRows
-  selected.value = workflows.value.find((item) => item.id === selected.value?.id) || workflows.value[0]
+  await loadData()
+  const roleRes = await getAdminRoles()
+  roles.value = roleRes.items ?? roleRes
+  selected.value = (items.value || []).find((item) => item.id === selected.value?.id) || (items.value || [])[0]
 }
 function openCreate() { editingId.value = null; form.value = { ...emptyForm }; dialogVisible.value = true }
 function openEdit(row: any) { editingId.value = row.id; form.value = { ...row }; dialogVisible.value = true }
@@ -153,5 +161,5 @@ async function removeNode(row: any) {
   ElMessage.success('流程节点已删除')
   await loadRows()
 }
-onMounted(async () => { await loadRows(); loading.value = false })
+onMounted(async () => { await loadRows() })
 </script>

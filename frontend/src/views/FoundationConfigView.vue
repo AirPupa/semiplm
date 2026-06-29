@@ -10,7 +10,7 @@
 
     <el-tabs v-model="activeTab" class="admin-tabs">
       <el-tab-pane label="编码规则" name="coding">
-        <el-table :data="codingRules" stripe height="620">
+        <el-table :data="codingRules" height="620">
           <el-table-column prop="object_type" label="对象" width="110" />
           <el-table-column prop="code" label="规则编码" width="150" />
           <el-table-column prop="name" label="规则名称" min-width="160" />
@@ -28,7 +28,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="分类属性" name="category">
-        <el-table :data="categories" row-key="id" stripe height="620">
+        <el-table :data="categories" row-key="id" height="620">
           <el-table-column type="expand">
             <template #default="{ row }">
               <div class="nested-grid">
@@ -71,7 +71,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="生命周期" name="lifecycle">
-        <el-table :data="lifecycles" row-key="id" stripe height="620">
+        <el-table :data="lifecycles" row-key="id" height="620">
           <el-table-column type="expand">
             <template #default="{ row }">
               <div class="nested-grid">
@@ -111,7 +111,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="数据字典" name="dictionary">
-        <el-table :data="dictionaryItems" stripe height="620">
+        <el-table :data="dictionaryItems" height="620">
           <el-table-column prop="dict_code" label="字典编码" width="170" />
           <el-table-column prop="dict_name" label="字典名称" width="130" />
           <el-table-column prop="item_value" label="值" min-width="140" />
@@ -129,7 +129,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="系统参数" name="params">
-        <el-table :data="systemParams" stripe height="620">
+        <el-table :data="systemParams" height="620">
           <el-table-column prop="param_key" label="键" width="180" />
           <el-table-column prop="param_value" label="值" min-width="220" />
           <el-table-column prop="param_group" label="分组" width="100" />
@@ -281,17 +281,17 @@ const tabName = computed(() => ({ coding: '编码规则', category: '分类模�
 
 async function loadRows() {
   const [rules, categoryRows, lifecycleRows, dictionaries, params] = await Promise.all([
-    getCodingRules(),
-    getCategoryTemplates(),
-    getLifecycleTemplates(),
-    getDictionaryItems(),
-    getSystemParameters(),
+    getCodingRules({ page: 1, page_size: 1000 }),
+    getCategoryTemplates({ page: 1, page_size: 1000 }),
+    getLifecycleTemplates({ page: 1, page_size: 1000 }),
+    getDictionaryItems({ page: 1, page_size: 1000 }),
+    getSystemParameters({ page: 1, page_size: 1000 }),
   ])
-  codingRules.value = rules
-  categories.value = categoryRows
-  lifecycles.value = lifecycleRows
-  dictionaryItems.value = dictionaries
-  systemParams.value = params
+  codingRules.value = rules.items ?? rules
+  categories.value = categoryRows.items ?? categoryRows
+  lifecycles.value = lifecycleRows.items ?? lifecycleRows
+  dictionaryItems.value = dictionaries.items ?? dictionaries
+  systemParams.value = params.items ?? params
 }
 
 function emptyMainForm() {

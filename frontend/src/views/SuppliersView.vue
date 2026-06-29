@@ -1,10 +1,14 @@
 <template>
-  <div class="panel" v-loading="loading">
+  <div class="panel list-panel" v-loading="loading">
     <div class="toolbar">
       <div><strong>供应商/制造商</strong><span class="muted"> · 资质、风险、状态管理</span></div>
-      <el-button v-if="can('material')" type="primary" :icon="Plus" @click="openCreate">新增供应商</el-button>
+      <div class="toolbar-actions">
+        <el-input v-model="keyword" placeholder="搜索编码/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
+        <el-button v-if="can('material')" type="primary" :icon="Plus" @click="openCreate">新增供应商</el-button>
+      </div>
     </div>
-    <el-table :data="rows" stripe height="680">
+    <div class="list-table-wrap">
+      <el-table :data="items" height="100%">
       <el-table-column prop="code" label="编码" width="120" />
       <el-table-column prop="name" label="名称" min-width="160" />
       <el-table-column prop="supplier_type" label="类型" width="100" />
@@ -22,6 +26,10 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
+    <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+      <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑供应商' : '新增供应商'" width="640px">
       <el-form :model="form" label-width="100px">
@@ -48,34 +56,33 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
 import { createSupplier, deleteSupplier, getSuppliers, updateSupplier } from '../api'
 import { useAuth } from '../auth'
+import { useListPage } from '../composables/useListPage'
 
-const loading = ref(true)
 const { can } = useAuth()
-const rows = ref<any[]>([])
+const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getSuppliers)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const emptyForm = { code: '', name: '', supplier_type: '材料', contact: '', phone: '', email: '', address: '', certification: '', risk_level: '中', status: '启用', description: '' }
 const form = ref<any>({ ...emptyForm })
 
-async function load() { rows.value = await getSuppliers() }
 function openCreate() { editingId.value = null; form.value = { ...emptyForm }; dialogVisible.value = true }
 function openEdit(row: any) { editingId.value = row.id; form.value = { ...row }; dialogVisible.value = true }
 async function save() {
   editingId.value ? await updateSupplier(editingId.value, form.value) : await createSupplier(form.value)
   ElMessage.success('供应商已保存')
   dialogVisible.value = false
-  await load()
+  await loadData()
 }
 async function remove(row: any) {
   await ElMessageBox.confirm('确认删除此供应商？', '删除确认', { type: 'warning' })
   await deleteSupplier(row.id)
   ElMessage.success('供应商已删除')
-  await load()
+  await loadData()
 }
-onMounted(async () => { await load(); loading.value = false })
+onMounted(async () => { await loadData() })
 </script>

@@ -50,6 +50,30 @@
       </a-row>
 
       <a-row :gutter="[14, 14]" class="section-row">
+        <a-col :xs="24" :xl="8">
+          <a-card :bordered="false" class="dashboard-card">
+            <template #title>项目阶段分布</template>
+            <template #extra><span class="card-extra">NPI 阶段</span></template>
+            <div ref="projectChart" class="arco-chart chart-secondary"></div>
+          </a-card>
+        </a-col>
+        <a-col :xs="24" :xl="8">
+          <a-card :bordered="false" class="dashboard-card">
+            <template #title>集成队列状态</template>
+            <template #extra><span class="card-extra">ERP/MES/QMS</span></template>
+            <div ref="integrationChart" class="arco-chart chart-secondary"></div>
+          </a-card>
+        </a-col>
+        <a-col :xs="24" :xl="8">
+          <a-card :bordered="false" class="dashboard-card">
+            <template #title>变更状态分布</template>
+            <template #extra><span class="card-extra">全生命周期</span></template>
+            <div ref="changeStatusChart" class="arco-chart chart-secondary"></div>
+          </a-card>
+        </a-col>
+      </a-row>
+
+      <a-row :gutter="[14, 14]" class="section-row">
         <a-col :xs="24" :xl="10">
           <a-card :bordered="false" class="dashboard-card">
             <template #title>工程变更类型</template>
@@ -61,16 +85,18 @@
           <a-card :bordered="false" class="dashboard-card">
             <template #title>近期研发任务</template>
             <template #extra><span class="card-extra">阶段门交付物</span></template>
-            <a-table
-              row-key="name"
-              :columns="taskColumns"
-              :data="data.recent_tasks || []"
-              :pagination="false"
-              :bordered="false"
-              :scroll="{ y: 278 }"
-              size="small"
-              class="task-table"
-            />
+            <div class="task-table-wrap">
+              <a-table
+                row-key="name"
+                :columns="taskColumns"
+                :data="data.recent_tasks || []"
+                :pagination="false"
+                :bordered="false"
+                :scroll="{ y: 252 }"
+                size="small"
+                class="task-table"
+              />
+            </div>
           </a-card>
         </a-col>
       </a-row>
@@ -88,6 +114,9 @@ const data = ref<any>({})
 const yieldChart = ref<HTMLElement>()
 const lifeChart = ref<HTMLElement>()
 const changeChart = ref<HTMLElement>()
+const projectChart = ref<HTMLElement>()
+const integrationChart = ref<HTMLElement>()
+const changeStatusChart = ref<HTMLElement>()
 const charts: echarts.ECharts[] = []
 
 const metricCards = computed(() => [
@@ -98,7 +127,7 @@ const metricCards = computed(() => [
     suffix: '',
     tag: '主数据',
     color: 'arcoblue',
-    span: 5,
+    span: 4,
     hint: '产品、版本、资料包聚合'
   },
   {
@@ -108,7 +137,7 @@ const metricCards = computed(() => [
     suffix: '',
     tag: 'NPI',
     color: 'purple',
-    span: 5,
+    span: 4,
     hint: 'APQP 阶段门推进'
   },
   {
@@ -118,7 +147,7 @@ const metricCards = computed(() => [
     suffix: '',
     tag: 'ECR',
     color: 'orange',
-    span: 5,
+    span: 4,
     hint: '影响分析与会签闭环'
   },
   {
@@ -128,7 +157,7 @@ const metricCards = computed(() => [
     suffix: '%',
     tag: 'DCC',
     color: 'green',
-    span: 5,
+    span: 4,
     progress: (data.value.metrics?.document_readiness || 0) / 100,
     progressColor: '#00b42a',
     hint: '规格、工艺、测试、可靠性'
@@ -144,6 +173,16 @@ const metricCards = computed(() => [
     progress: (data.value.metrics?.bom_readiness || 0) / 100,
     progressColor: '#f53f3f',
     hint: '结构、用量、替代料校验'
+  },
+  {
+    key: 'integration',
+    label: '集成待处理',
+    value: data.value.metrics?.integration_pending || 0,
+    suffix: '',
+    tag: data.value.metrics?.integration_failed ? `${data.value.metrics.integration_failed} 失败` : '队列',
+    color: data.value.metrics?.integration_failed ? 'red' : 'arcoblue',
+    span: 4,
+    hint: 'ERP/MES/QMS 同步队列'
   }
 ])
 
@@ -245,7 +284,58 @@ function renderCharts() {
     series: [{ type: 'bar', data: changes.map((item: any) => item.value), barWidth: 28, itemStyle: { borderRadius: [5, 5, 0, 0] } }]
   })
 
-  charts.push(y, l, c)
+  const projectPhases = data.value.project_phases || []
+  const p = echarts.init(projectChart.value!, undefined, { renderer: 'canvas' })
+  p.setOption({
+    ...chartTheme(),
+    tooltip: { trigger: 'axis' },
+    grid: { left: 38, right: 18, top: 24, bottom: 58 },
+    xAxis: {
+      type: 'category',
+      data: projectPhases.map((item: any) => item.name),
+      axisLabel: { interval: 0, width: 60, overflow: 'break' },
+      axisLine: { lineStyle: { color: '#e5e6eb' } },
+      axisTick: { show: false }
+    },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: '#edf1f7' } } },
+    series: [{ type: 'bar', data: projectPhases.map((item: any) => item.value), barWidth: 24, itemStyle: { borderRadius: [4, 4, 0, 0], color: '#722ed1' } }]
+  })
+
+  const integrationStatus = data.value.integration_status || []
+  const i = echarts.init(integrationChart.value!, undefined, { renderer: 'canvas' })
+  i.setOption({
+    ...chartTheme(),
+    tooltip: { trigger: 'item' },
+    legend: { bottom: 0, type: 'scroll' },
+    series: [
+      {
+        type: 'pie',
+        radius: ['42%', '66%'],
+        center: ['50%', '42%'],
+        label: { formatter: '{b}: {c}' },
+        data: integrationStatus
+      }
+    ]
+  })
+
+  const changeStatus = data.value.change_status || []
+  const cs = echarts.init(changeStatusChart.value!, undefined, { renderer: 'canvas' })
+  cs.setOption({
+    ...chartTheme(),
+    tooltip: { trigger: 'axis' },
+    grid: { left: 38, right: 18, top: 24, bottom: 58 },
+    xAxis: {
+      type: 'category',
+      data: changeStatus.map((item: any) => item.name),
+      axisLabel: { interval: 0, width: 60, overflow: 'break' },
+      axisLine: { lineStyle: { color: '#e5e6eb' } },
+      axisTick: { show: false }
+    },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: '#edf1f7' } } },
+    series: [{ type: 'bar', data: changeStatus.map((item: any) => item.value), barWidth: 24, itemStyle: { borderRadius: [4, 4, 0, 0], color: '#ff7d00' } }]
+  })
+
+  charts.push(y, l, c, p, i, cs)
 }
 
 async function reload() {
@@ -309,6 +399,12 @@ onBeforeUnmount(resetCharts)
   min-width: 0;
 }
 
+/* 指标卡行各列等高 */
+.arco-dashboard .stat-row {
+  display: flex;
+  align-items: stretch;
+}
+
 .metric-card,
 .dashboard-card {
   height: 100%;
@@ -362,6 +458,21 @@ onBeforeUnmount(resetCharts)
 
 .chart-secondary {
   height: 298px;
+}
+
+.task-table-wrap {
+  height: 298px;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-table {
+  flex: 1;
+  min-height: 0;
+}
+
+.task-table :deep(.arco-table-container) {
+  height: 100%;
 }
 
 .task-table :deep(.arco-table-th) {

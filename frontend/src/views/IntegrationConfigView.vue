@@ -1,25 +1,33 @@
 <template>
-  <div class="panel" v-loading="loading">
+  <div class="panel list-panel" v-loading="loading">
     <div class="toolbar">
       <div>
         <strong>接口配置</strong>
         <span class="muted"> · ERP / MES / QMS 端点、方向、认证与对象范围</span>
       </div>
-      <el-button type="primary" :icon="Plus" @click="openCreate">新增端点</el-button>
+      <div class="toolbar-actions">
+        <el-input v-model="keyword" placeholder="搜索编码/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
+        <el-button type="primary" :icon="Plus" @click="openCreate">新增端点</el-button>
+      </div>
     </div>
-    <el-table :data="endpoints" stripe height="680">
-      <el-table-column prop="code" label="编码" width="130" fixed />
-      <el-table-column prop="name" label="名称" width="190" />
-      <el-table-column prop="system_type" label="系统" width="90" />
-      <el-table-column prop="base_url" label="接口地址" min-width="240" />
-      <el-table-column prop="auth_type" label="认证" width="90" />
-      <el-table-column prop="direction" label="方向" width="90" />
-      <el-table-column prop="status" label="状态" width="90" />
-      <el-table-column prop="object_scope" label="对象范围" min-width="240" />
-      <el-table-column label="操作" width="100" fixed="right">
-        <template #default="{ row }"><el-button size="small" @click="openEdit(row)">编辑</el-button></template>
-      </el-table-column>
-    </el-table>
+    <div class="list-table-wrap">
+      <el-table :data="items" height="100%">
+        <el-table-column prop="code" label="编码" width="130" fixed />
+        <el-table-column prop="name" label="名称" width="190" />
+        <el-table-column prop="system_type" label="系统" width="90" />
+        <el-table-column prop="base_url" label="接口地址" min-width="240" />
+        <el-table-column prop="auth_type" label="认证" width="90" />
+        <el-table-column prop="direction" label="方向" width="90" />
+        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column prop="object_scope" label="对象范围" min-width="240" />
+        <el-table-column label="操作" width="100" fixed="right">
+          <template #default="{ row }"><el-button size="small" @click="openEdit(row)">编辑</el-button></template>
+        </el-table-column>
+      </el-table>
+    </div>
+    <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+      <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑接口端点' : '新增接口端点'" width="720px">
       <el-form :model="form" label-width="90px">
@@ -41,27 +49,28 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { onMounted, ref } from 'vue'
 import { createIntegrationEndpoint, getIntegrationEndpoints, updateIntegrationEndpoint } from '../api'
 import UserSelect from '../components/UserSelect.vue'
+import { useListPage } from '../composables/useListPage'
 
-const loading = ref(true)
-const endpoints = ref<any[]>([])
+const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getIntegrationEndpoints)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const emptyForm = { code: '', name: '', system_type: 'ERP', base_url: '', auth_type: 'Token', direction: '双向', status: '启用', owner: '', object_scope: '' }
 const form = ref<any>({ ...emptyForm })
 
-async function loadRows() { endpoints.value = await getIntegrationEndpoints() }
 function openCreate() { editingId.value = null; form.value = { ...emptyForm }; dialogVisible.value = true }
 function openEdit(row: any) { editingId.value = row.id; form.value = { ...row }; dialogVisible.value = true }
 async function save() {
   editingId.value ? await updateIntegrationEndpoint(editingId.value, form.value) : await createIntegrationEndpoint(form.value)
   ElMessage.success('接口端点已保存')
   dialogVisible.value = false
-  await loadRows()
+  await loadData()
 }
-onMounted(async () => { await loadRows(); loading.value = false })
+onMounted(async () => {
+  await loadData()
+})
 </script>

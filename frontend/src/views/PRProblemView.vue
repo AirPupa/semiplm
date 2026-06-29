@@ -1,18 +1,17 @@
 <template>
-  <div class="panel" v-loading="loading">
+  <div class="panel list-panel" v-loading="loading">
     <div class="toolbar">
       <div>
         <strong>PR 问题报告</strong>
         <span class="muted"> · Problem Report，问题描述、分类、严重度、关联变更</span>
       </div>
-      <el-button v-if="can('change')" type="primary" :icon="Plus" @click="openCreate">新建 PR</el-button>
+      <div class="toolbar-actions">
+        <el-input v-model="keyword" placeholder="搜索 PR 编号/标题" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
+        <el-button v-if="can('change')" type="primary" :icon="Plus" @click="openCreate">新建 PR</el-button>
+      </div>
     </div>
-
-    <div class="toolbar compact-toolbar">
-      <el-input v-model="search" placeholder="搜索 PR 编号 / 标题 / 产品型号" clearable style="width: 320px" />
-    </div>
-
-    <el-table :data="filtered" stripe height="640">
+    <div class="list-table-wrap">
+      <el-table :data="items" height="100%">
       <el-table-column prop="pr_no" label="PR 编号" width="140" fixed />
       <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
       <el-table-column prop="problem_type" label="问题类型" width="110" />
@@ -42,6 +41,10 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
+    <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+      <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑 PR' : '新建 PR'" width="720px">
       <el-form :model="form" label-width="90px">
@@ -105,18 +108,17 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { createProblemReport, deleteProblemReport, getProblemReports, updateProblemReport, getProducts } from '../api'
 import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
+import { useListPage } from '../composables/useListPage'
 
-const loading = ref(true)
 const { can, currentUser } = useAuth()
-const reports = ref<any[]>([])
+const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getProblemReports)
 const products = ref<any[]>([])
-const search = ref('')
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 
@@ -138,22 +140,8 @@ const emptyForm = {
 }
 const form = ref<any>({ ...emptyForm })
 
-const filtered = computed(() => {
-  const q = search.value.toLowerCase()
-  if (!q) return reports.value
-  return reports.value.filter((r: any) =>
-    r.pr_no?.toLowerCase().includes(q) ||
-    r.title?.toLowerCase().includes(q) ||
-    r.product_model?.toLowerCase().includes(q)
-  )
-})
-
 function todayText() {
   return new Date().toISOString().slice(0, 10)
-}
-
-async function load() {
-  reports.value = await getProblemReports()
 }
 
 function onProductChange(model: string) {
@@ -192,7 +180,7 @@ async function save() {
     ElMessage.success('PR 已创建')
   }
   dialogVisible.value = false
-  await load()
+  await loadData()
 }
 
 async function remove(row: any) {
@@ -200,12 +188,11 @@ async function remove(row: any) {
   await ElMessageBox.confirm(`确认删除 PR ${row.pr_no}？已关闭的 PR 不可删除。`, '删除确认', { type: 'warning' })
   await deleteProblemReport(row.id)
   ElMessage.success('PR 已删除')
-  await load()
+  await loadData()
 }
 
 onMounted(async () => {
-  products.value = await getProducts()
-  await load()
-  loading.value = false
+  products.value = (await getProducts()).items
+  await loadData()
 })
 </script>

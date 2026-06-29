@@ -6,6 +6,7 @@ const router = createRouter({
     { path: '/', redirect: '/dashboard' },
     { path: '/dashboard', component: () => import('./views/DashboardView.vue'), meta: { title: '研发驾驶舱' } },
     { path: '/workbench', component: () => import('./views/WorkbenchView.vue'), meta: { title: '我的待办' } },
+    { path: '/closure-check', component: () => import('./views/ClosureCheckView.vue'), meta: { title: '闭环验证' } },
     { path: '/products', component: () => import('./views/ProductsView.vue'), meta: { title: '产品库' } },
     { path: '/products/:id', component: () => import('./views/ProductDetailView.vue'), meta: { title: '产品详情' } },
     { path: '/requirements', component: () => import('./views/RequirementsView.vue'), meta: { title: '需求规格管理' } },
@@ -29,7 +30,8 @@ const router = createRouter({
     { path: '/admin/foundation', component: () => import('./views/FoundationConfigView.vue'), meta: { title: '基础配置' } },
     { path: '/admin/workflows', component: () => import('./views/WorkflowConfigView.vue'), meta: { title: '流程配置' } },
     { path: '/admin/integrations', component: () => import('./views/IntegrationConfigView.vue'), meta: { title: '接口端点' } },
-    { path: '/admin/audit-logs', component: () => import('./views/AuditLogView.vue'), meta: { title: '操作日志' } }
+    { path: '/admin/audit-logs', component: () => import('./views/AuditLogView.vue'), meta: { title: '操作日志' } },
+    { path: '/reports', component: () => import('./views/ReportsView.vue'), meta: { title: '报表中心' } }
   ]
 })
 

@@ -15,6 +15,68 @@
 - 当前阶段优先级：业务功能合理性和完整性优先于复杂工程严谨性。先做真实对象、真实 CRUD、真实流程闭环和合理页面交互；事务一致性、高并发、复杂锁、审计强化、性能分片等企业级工程治理暂缓到业务主线成熟后再补。
 - 目标部署环境为 Linux + Docker；Windows 仅作为当前开发环境。代码、脚本、路径和文档必须避免绑定 Windows 盘符或 PowerShell 专属习惯。
 - 日常页面和功能迭代优先提高开发效率：小改动以页面可打开、控制台无明显错误、关键交互可用为主；涉及后端接口、数据结构、部署、发布前再做后端编译、前端构建和更完整验证。
+- Codex 本地固定工作目录为 `C:\Users\Administrator\codex-workspace`，仓库克隆到 `C:\Users\Administrator\codex-workspace\semiplm`；后续继续开发默认基于该目录。依赖、构建产物、缓存、日志等不提交，运行数据库 `backend/semiplm.db` 属于项目数据，必须继续跟随 Git 提交。
+- Windows 开发环境启动约定：后端使用 `C:\Python314\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000`，前端使用 `npm.cmd run dev`；PowerShell 执行策略会拦截 `npm.ps1`，受限沙盒下 Vite/esbuild 和后台服务可能需要提权。Linux 部署仍以 `docker compose up --build` 为准，不能把 Windows 路径写进生产部署脚本。
+- UI 调整以业务可用和现有设计 BOM 页面风格为准，Element Plus 与 Arco 可在过渡期并存；禁止为了清理组件库而把已稳定页面改乱。若迁移组件，必须整页对齐既有业务页密度、操作列和表单交互后再保留。
+- 业务表格风格以需求规格页面为基准，默认不启用斑马纹；如果某页需要特殊行态，必须明确写在该页自己的实现里，不要靠组件默认样式混进去。
+
+## 列表页标准（以用户管理页为基准模板）
+
+用户管理页（`UserManagementView.vue`）已完成分页、布局和交互标准化，作为所有列表页的基准模板。现有列表页必须逐个对齐以下标准：
+
+### 后端分页
+
+- 列表 API 必须支持 `page`、`page_size`、`keyword` 查询参数。
+- 返回结构统一为 `{ "items": [...], "total": N, "page": P, "page_size": S }`，不再返回裸数组。
+- 搜索字段根据业务对象合理选择（编号、名称、型号、类型等），使用 `ilike` 模糊匹配。
+- 默认 `page_size=20`。
+
+### 前端分页
+
+- 使用 `el-pagination`，layout 为 `total, sizes, prev, pager, next, jumper`，带 `background`。
+- 页大小选项 `[20, 50, 100, 200]`，默认 20。
+- 总条数不超过单页时（`total <= pageSize`）不显示分页器。
+- 搜索改为服务端查询（回车或清除触发），不再前端内存过滤。
+- Element Plus 已配置中文语言包（`zhCn`），分页文案为中文。
+
+### 布局
+
+- 面板使用 flex 列布局，高度 `calc(100vh - 82px)`（减去顶栏 54px + 内容区上下 padding 28px）。
+- 表格区域 `flex: 1; min-height: 0; overflow: hidden`，`el-table` 设 `height="100%"` 填满剩余空间。
+- 分页器固定在表格下方右侧。
+- 全局布局：顶栏固定不动（`.app-shell` 和 `.main-layout` 均 `max-height: 100vh; overflow: hidden`），内容区 `.arco-content` 固定 `height: calc(100vh - 54px)` 独立滚动。
+
+### 样式
+
+- 表格不使用 `stripe`（斑马纹）。
+- 操作列紧凑单行，不换行。
+- 顶栏显示"一级菜单 / 二级菜单"面包屑格式（已全局实现）。
+
+### 需要修复的现有列表页
+
+以下页面需按上述标准逐个修复（后端分页 + 前端布局）：
+
+1. 产品库 `ProductsView.vue` → `GET /api/products`
+2. 需求规格 `RequirementsView.vue` → `GET /api/requirements`
+3. 物料库 `MaterialsView.vue` → `GET /api/materials`
+4. 替代料管理 `SubstituteMaterialsView.vue` → `GET /api/substitute-materials`
+5. 供应商管理 `SuppliersView.vue` → `GET /api/suppliers`
+6. 文档库 `DocumentsView.vue` → `GET /api/documents`
+7. 设计 BOM `BomView.vue` → `GET /api/boms`
+8. BOM 基线 `BaselinesView.vue` → `GET /api/baselines`
+9. 工艺路线 `ProcessView.vue` → `GET /api/process-routes`
+10. 工艺参数库 `ProcessParametersView.vue` → `GET /api/process-parameters`
+11. PR 问题报告 `PRProblemView.vue` → `GET /api/problem-reports`
+12. ECR 变更申请 `ChangesView.vue` → `GET /api/changes`
+13. 同步队列 `IntegrationsView.vue` → `GET /api/integration-jobs`
+14. 项目管理 `ProjectsView.vue` → `GET /api/projects`
+15. 质量问题 `QualityView.vue` → `GET /api/quality`
+16. 组织管理 `OrganizationManagementView.vue` → `GET /api/admin/organizations`
+17. 角色管理 `RoleManagementView.vue` → `GET /api/admin/roles`
+18. 基础配置 `FoundationConfigView.vue` → 多个基础配置 API
+19. 流程配置 `WorkflowConfigView.vue` → `GET /api/admin/workflows`
+20. 接口端点 `IntegrationConfigView.vue` → `GET /api/admin/integration-endpoints`
+21. 操作日志 `AuditLogView.vue` → `GET /api/audit-logs`
 
 ## 完整闭环标准
 
@@ -241,4 +303,14 @@
 - 已完成：前端左侧菜单第一轮按 `MENU_ARCHITECTURE.md` 重组，已从”产品研发/研发数据/执行闭环”改为工作台、基础平台、主数据中心、文档与资料、BOM 管理、工艺管理、工程变更、项目管理、质量闭环、集成中心；当前只开放已有真实页面，不放空壳菜单。
 - 已完成：PR 问题报告和工艺参数库种子数据补齐；PR 补充 4 条真实光电芯片制造问题场景（暗电流偏高、CD 均匀性波动、封装耦合效率下降、波导损耗偏大），关联产品主数据和变更单；工艺参数库补充 15 条覆盖 CD、Overlay、刻蚀深度、膜厚、片阻、LIV/IV、Wafer Map、折射率、应力、粗糙度的标准参数定义。
 - 已完成：PR 问题报告产品型号字段从手输改为产品主数据下拉选择，选择后自动回填 `product_id`；PR 和工艺参数页补充搜索框，支持按编号、名称、型号、类型、分类关键字筛选。
-- 下一步：继续深化工程变更，补齐变更生效批次控制、对象历史归档详情页和升版对象的发布前校验；同时推进 Arco Design 迁移阶段 B，将基础平台页面从 Element Plus 迁移到 Arco。
+- 已完成：用户管理列表页分页第一轮，后端 `GET /api/admin/users` 支持 `page`/`page_size`/`keyword` 参数，返回 `{items, total, page, page_size}` 结构；前端 `UserManagementView.vue` 实现 `el-pagination` 分页器（total/sizes/prev/pager/next/jumper 布局），页大小可选 20/50/100/200，默认 20 条，总条数不超过单页时不显示分页器；面板改为 flex 列布局撑满可用高度，表格 `flex:1` 填满剩余空间，消除底部空白；此页作为列表页分页基准模板。
+- 约定：seed.py 中 admin、luofusen、yushuaibing、zhanghao、fanglei、liangweiwei 为真实业务用户，参与产品、BOM、工艺、变更、项目等业务数据关联；其余测试用户仅供分页布局验证，不得作为主数据参与业务数据构造。
+- 已完成：工程变更深化收尾——变更生效批次控制、对象版本历史归档和升版对象发布前校验三项全部落地。新增产品级生效批次总览 API（`GET /api/products/{id}/effectivity-batches`），按批次聚合该产品所有 ECA 动作，展示批次状态（已生效/执行中/待执行）、关联变更单、动作完成率和发布门状态；新增 BOM/文档/工艺路线版本历史 API，追溯完整版本链路（来源版本→生成变更单→ECA 动作→生效信息→发布门），支持跨变更追溯；升版对象发布前校验已集成到 BOM/文档/工艺提交和审批流。前端工程变更页增加批次控制弹窗（按产品筛选、批次分组展开、点击变更单跳转）和增强版归档详情弹窗（版本链路表格+来源/生成对象双跳转）。同时修复多文件 `items.value` 空安全 TS 报错，前端构建和后端编译均通过。
+- 已完成：项目管理阶段 6A 第一轮闭环。新增项目任务 CRUD API（`GET/POST /api/projects/{id}/tasks`、`PUT/DELETE /api/project-tasks/{id}`），项目任务从只读改为可维护；新增阶段门推进 API（`POST /api/projects/{id}/advance-phase`），推进时校验当前阶段交付物必须全部完成，推进后自动按阶段序更新进度百分比。前端项目管理页改造：项目/交付物/风险/任务负责人全部从手输改为用户主数据下拉（UserSelect）；产品型号从手输改为产品主数据下拉；任务 tab 新增 CRUD 操作列和阶段门推进按钮；阶段和状态字段统一用标签和下拉。后端项目列表 API 返回 task id，前端任务编辑可直接定位。
+- 已完成：质量闭环阶段 6B 第一轮。新增质量问题 CRUD API（`POST/PUT/DELETE /api/quality/issues/{id}`）、质量问题关闭 API（`POST /api/quality/issues/{id}/close`）、质量问题触发 ECR API（`POST /api/quality/issues/{id}/trigger-ecr`）——自动按产品型号匹配产品主数据、创建关联变更单草稿、问题状态推进到"已触发 ECR"；新增 CAPA 关闭联动 API（`POST /api/quality/capas/{id}/close`）——关闭 CAPA 时自动关闭关联质量问题。前端质量页从只读卡片改为可编辑列表：质量问题支持新增/编辑/删除/发起 CAPA/触发 ECR/关闭；CAPA 支持新增/编辑/关闭/删除，关闭时弹窗输入关闭结论；负责人全部改为用户主数据下拉；Lot 追溯补充 Bin1/问题数/测试日期列和搜索筛选。
+- 下一步：继续深化项目管理（交付物审批发布后自动完成任务节点）和质量闭环（质量报告归档），按 MENU_ARCHITECTURE.md 迭代顺序推进。
+- 已完成：交付物关联业务对象与审批发布自动完成。ProjectDeliverable 模型新增 `object_type`/`object_id` 字段（通过 `ensure_lightweight_schema` 自动迁移），交付物可关联 BOM/文档/工艺路线；`complete_business_object` 函数在对象审批发布后自动调用 `auto_complete_project_deliverable`，将关联交付物状态置为"已完成"并记录完成日期——实现路线图验收要求"交付物审批发布后，自动完成对应任务节点并更新项目进度"。前端交付物弹窗增加关联对象类型和关联对象下拉选择（按 BOM/文档/工艺路线过滤）。
+- 已完成：质量报告归档。新增 QualityReport 模型（报告编号、标题、类型、产品型号、关联问题/CAPA、摘要、根因、纠正/预防措施、负责人、归档日期/人）；新增 5 个 API（`GET/POST /api/quality/reports`、`PUT/DELETE /api/quality/reports/{id}`、`POST /api/quality/reports/archive-from-issues` 批量从已关闭问题+CAPA 生成归档报告）；前端质量页新增"质量报告归档" tab，支持手动新增、从已关闭问题批量归档（勾选已关闭质量问题，自动汇总根因/纠正措施/预防措施）、编辑、删除。
+- 下一步：继续按 MENU_ARCHITECTURE.md 迭代顺序推进，关注工作台增强（个人待办/任务/消息聚合）和整体业务闭环验证。
+- 已完成：工作台与驾驶舱数据聚合增强。工作台 API（`GET /api/workbench`）增加按当前用户聚合的"我的变更""我的项目""我的任务""我的质量问题""近期动态""待处理流程任务"6 个数据板块，每个板块按业务字段返回紧凑列表；前端 WorkbenchView 从单列表重构为 7 个 tab（流程待办/我的变更/我的项目/我的任务/我的质量问题/阶段门风险/近期动态），近期动态用 el-timeline 展示。驾驶舱 API（`GET /api/dashboard`）新增 6 个指标（集成待处理/集成失败/质量未关闭问题/CAPA 未关闭/交付物未完成/质量报告数）和 3 个分布（项目阶段分布/集成队列状态/变更状态分布）；前端 DashboardView 指标卡从 5 个增至 6 个（新增集成待处理），新增 3 个图表（项目阶段柱状图/集成队列饼图/变更状态柱状图）。
+- 下一步：继续按 MENU_ARCHITECTURE.md 推进，关注产品资料包聚合视图和需求追溯链路完善。

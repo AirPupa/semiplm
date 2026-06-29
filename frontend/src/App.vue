@@ -12,7 +12,7 @@
       <a-menu
         class="nav-menu arco-nav"
         :selected-keys="[$route.path]"
-        :default-open-keys="['work', 'base', 'master', 'docs', 'bom', 'process', 'change', 'project', 'quality']"
+        :default-open-keys="['work', 'base', 'master', 'docs', 'bom', 'process', 'change', 'project', 'quality', 'integration', 'report']"
         @menu-item-click="navigate"
       >
         <a-sub-menu v-for="group in visibleMenuGroups" :key="group.key">
@@ -23,10 +23,10 @@
       </a-menu>
     </a-layout-sider>
 
-    <a-layout>
+    <a-layout class="main-layout">
       <a-layout-header class="topbar arco-topbar">
         <div class="page-heading">
-          <div class="page-title">{{ $route.meta.title }}</div>
+          <div class="page-title">{{ currentGroup ? `${currentGroup} / ${$route.meta.title}` : $route.meta.title }}</div>
           <div class="page-subtitle">光电芯片制造 PLM · 研发、工艺、质量、制造数据闭环</div>
         </div>
 
@@ -62,6 +62,7 @@ import { getAdminUsers } from './api'
 import { useAuth } from './auth'
 import {
   IconBarChart as IconDashboard,
+  IconBarChart as IconBarChart,
   IconBranch,
   IconDown,
   IconFolder,
@@ -83,7 +84,8 @@ const menuGroups = [
     icon: IconDashboard,
     children: [
       { path: '/dashboard', title: '研发驾驶舱', permission: 'dashboard' },
-      { path: '/workbench', title: '我的待办', permission: 'approval' }
+      { path: '/workbench', title: '我的待办', permission: 'approval' },
+      { path: '/closure-check', title: '闭环验证', permission: 'dashboard' }
     ]
   },
   {
@@ -167,7 +169,15 @@ const menuGroups = [
     icon: IconBranch,
     children: [
       { path: '/integrations', title: '同步队列', permission: 'integration' },
-      { path: '/admin/integrations', title: '接口配置', permission: 'integration' },
+      { path: '/admin/integrations', title: '接口配置', permission: 'integration' }
+    ]
+  },
+  {
+    key: 'report',
+    title: '报表与审计',
+    icon: IconBarChart,
+    children: [
+      { path: '/reports', title: '报表中心', permission: 'dashboard' },
       { path: '/admin/audit-logs', title: '操作日志', permission: 'system' }
     ]
   }
@@ -180,9 +190,19 @@ const visibleMenuGroups = computed(() => menuGroups
   }))
   .filter((group) => group.children.length))
 
+const currentGroup = computed(() => {
+  const path = router.currentRoute.value.path
+  for (const group of menuGroups) {
+    if (group.children.some((item) => item.path === path)) {
+      return group.title
+    }
+  }
+  return ''
+})
+
 async function loadSession() {
-  const [, userRows] = await Promise.all([refreshSession(), getAdminUsers()])
-  users.value = userRows
+  const [, userRes] = await Promise.all([refreshSession(), getAdminUsers()])
+  users.value = userRes.items ?? userRes
 }
 
 async function switchUser(username: string) {

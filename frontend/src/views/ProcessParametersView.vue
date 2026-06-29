@@ -1,18 +1,17 @@
 <template>
-  <div class="panel" v-loading="loading">
+  <div class="panel list-panel" v-loading="loading">
     <div class="toolbar">
       <div>
         <strong>工艺参数库</strong>
         <span class="muted"> · CD、Overlay、刻蚀深度、膜厚、片阻、LIV/IV、Wafer Map 等工艺参数定义</span>
       </div>
-      <el-button v-if="can('process')" type="primary" :icon="Plus" @click="openCreate">新建参数</el-button>
+      <div class="toolbar-actions">
+        <el-input v-model="keyword" placeholder="搜索参数编号/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
+        <el-button v-if="can('process')" type="primary" :icon="Plus" @click="openCreate">新建参数</el-button>
+      </div>
     </div>
-
-    <div class="toolbar compact-toolbar">
-      <el-input v-model="search" placeholder="搜索参数编号 / 名称 / 类型 / 分类" clearable style="width: 360px" />
-    </div>
-
-    <el-table :data="filtered" stripe height="640">
+    <div class="list-table-wrap">
+      <el-table :data="items" height="100%">
       <el-table-column prop="param_code" label="参数编号" width="140" fixed />
       <el-table-column prop="param_name" label="参数名称" width="180" />
       <el-table-column prop="param_type" label="类型" width="130">
@@ -38,6 +37,10 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
+    <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+      <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑参数' : '新建参数'" width="680px">
       <el-form :model="form" label-width="90px">
@@ -84,16 +87,15 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { createProcessParameter, deleteProcessParameter, getProcessParameters, updateProcessParameter } from '../api'
 import { useAuth } from '../auth'
+import { useListPage } from '../composables/useListPage'
 
-const loading = ref(true)
 const { can } = useAuth()
-const params = ref<any[]>([])
-const search = ref('')
+const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getProcessParameters)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 
@@ -110,21 +112,6 @@ const emptyForm = () => ({
   status: '启用',
 })
 const form = ref<any>(emptyForm())
-
-const filtered = computed(() => {
-  const q = search.value.toLowerCase()
-  if (!q) return params.value
-  return params.value.filter((r: any) =>
-    r.param_code?.toLowerCase().includes(q) ||
-    r.param_name?.toLowerCase().includes(q) ||
-    r.param_type?.toLowerCase().includes(q) ||
-    r.category?.toLowerCase().includes(q)
-  )
-})
-
-async function load() {
-  params.value = await getProcessParameters()
-}
 
 function openCreate() {
   editingId.value = null
@@ -153,7 +140,7 @@ async function save() {
     ElMessage.success('参数已创建')
   }
   dialogVisible.value = false
-  await load()
+  await loadData()
 }
 
 async function remove(row: any) {
@@ -161,11 +148,10 @@ async function remove(row: any) {
   await ElMessageBox.confirm(`确认删除参数 ${row.param_code}？`, '删除确认', { type: 'warning' })
   await deleteProcessParameter(row.id)
   ElMessage.success('参数已删除')
-  await load()
+  await loadData()
 }
 
 onMounted(async () => {
-  await load()
-  loading.value = false
+  await loadData()
 })
 </script>

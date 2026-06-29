@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
-from datetime import date
+from datetime import date, datetime
 
 from . import models
 from .database import Base, engine, get_db
@@ -150,6 +150,10 @@ def ensure_lightweight_schema() -> None:
             "generated_object_no": "VARCHAR(160) DEFAULT ''",
         },
         "operation_logs": {
+            "object_id": "INTEGER",
+        },
+        "project_deliverables": {
+            "object_type": "VARCHAR(40) DEFAULT ''",
             "object_id": "INTEGER",
         },
     }
@@ -1063,6 +1067,8 @@ class ProjectDeliverablePayload(BaseModel):
     status: str = "待处理"
     due_date: str = ""
     description: str = ""
+    object_type: str = ""
+    object_id: int | None = None
 
 
 class ProjectDeliverableUpdatePayload(BaseModel):
@@ -1074,6 +1080,8 @@ class ProjectDeliverableUpdatePayload(BaseModel):
     due_date: str | None = None
     completed_at: str | None = None
     description: str | None = None
+    object_type: str | None = None
+    object_id: int | None = None
 
 
 class ProjectRiskPayload(BaseModel):
@@ -1122,6 +1130,82 @@ class QualityCAPAUpdatePayload(BaseModel):
     due_date: str | None = None
     closed_at: str | None = None
     result: str | None = None
+
+
+class QualityIssuePayload(BaseModel):
+    issue_no: str = ""
+    product_model: str = ""
+    lot_no: str = ""
+    title: str
+    severity: str = "中"
+    status: str = "新建"
+    owner: str = ""
+    root_cause: str = ""
+    corrective_action: str = ""
+
+
+class QualityIssueUpdatePayload(BaseModel):
+    product_model: str | None = None
+    lot_no: str | None = None
+    title: str | None = None
+    severity: str | None = None
+    status: str | None = None
+    owner: str | None = None
+    root_cause: str | None = None
+    corrective_action: str | None = None
+
+
+class ProjectTaskPayload(BaseModel):
+    name: str
+    phase: str = ""
+    owner: str = ""
+    status: str = "待处理"
+    due_date: str = ""
+
+
+class ProjectTaskUpdatePayload(BaseModel):
+    name: str | None = None
+    phase: str | None = None
+    owner: str | None = None
+    status: str | None = None
+    due_date: str | None = None
+
+
+class ProjectPhaseGatePayload(BaseModel):
+    acted_by: str = "系统用户"
+    comment: str = ""
+
+
+class QualityReportPayload(BaseModel):
+    report_no: str = ""
+    title: str
+    report_type: str = "质量归档"
+    product_model: str = ""
+    issue_nos: str = ""
+    capa_nos: str = ""
+    summary: str = ""
+    root_cause: str = ""
+    corrective_action: str = ""
+    preventive_action: str = ""
+    owner: str = ""
+    status: str = "已归档"
+
+
+class QualityReportUpdatePayload(BaseModel):
+    title: str | None = None
+    report_type: str | None = None
+    summary: str | None = None
+    root_cause: str | None = None
+    corrective_action: str | None = None
+    preventive_action: str | None = None
+    owner: str | None = None
+    status: str | None = None
+
+
+class QualityReportArchiveFromIssuePayload(BaseModel):
+    issue_ids: list[int] = []
+    title: str = ""
+    owner: str = ""
 
 
 class WorkflowTaskActionPayload(BaseModel):
@@ -1686,8 +1770,7 @@ def validate_change_action_target(db: Session, action: models.ChangeAction) -> N
         validate_process_route_ready(source)
 
 
-def validate_eca_generated_object_ready(db: Session, object_type: str, object_id: int, generated_object_no: str) -> None:
-    """校验 ECA 生成的对象草稿在提交前已完成 ECA 关闭。"""
+def get_eca_generated_object_gate(db: Session, object_type: str, generated_object_no: str) -> dict | None:
     action = (
         db.query(models.ChangeAction)
         .filter(
@@ -1696,12 +1779,44 @@ def validate_eca_generated_object_ready(db: Session, object_type: str, object_id
         )
         .first()
     )
-    if action and action.status != "已完成":
-        change = db.query(models.Change).filter(models.Change.id == action.change_id).first()
+    if not action:
+        return None
+    change = db.query(models.Change).filter(models.Change.id == action.change_id).first()
+    if action.status != "已完成":
+        return {
+            "ready": False,
+            "action_no": action.action_no,
+            "action_status": action.status,
+            "change_no": change.change_no if change else "",
+            "change_status": change.status if change else "",
+            "message": f"ECA 动作 {action.action_no} 尚未关闭，生成对象不能提交发布。",
+        }
+    if change and change.status != "已关闭":
+        return {
+            "ready": False,
+            "action_no": action.action_no,
+            "action_status": action.status,
+            "change_no": change.change_no,
+            "change_status": change.status,
+            "message": f"变更单 {change.change_no} 尚未关闭，需等待全部 ECA 动作完成后再提交发布生成对象。",
+        }
+    return {
+        "ready": True,
+        "action_no": action.action_no,
+        "action_status": action.status,
+        "change_no": change.change_no if change else "",
+        "change_status": change.status if change else "",
+        "message": "生成对象已满足提交发布条件。",
+    }
+
+
+def validate_eca_generated_object_ready(db: Session, object_type: str, object_id: int, generated_object_no: str) -> None:
+    """校验 ECA 生成的对象草稿在提交/发布前已完成整张变更闭环。"""
+    gate = get_eca_generated_object_gate(db, object_type, generated_object_no)
+    if gate and not gate["ready"]:
         raise HTTPException(
             status_code=409,
-            detail=f"Object was generated by ECA action {action.action_no} (change: {change.change_no if change else 'N/A'}), "
-            f"which has status '{action.status}'. Close the ECA action first before submitting.",
+            detail=gate["message"],
         )
 
 
@@ -2054,6 +2169,7 @@ def complete_business_object(db: Session, instance: models.WorkflowInstance) -> 
             bom.status = "已发布"
             bom.release_date = today_text()
             create_integration_job(db, "ERP", "BOM", f"{bom.bom_type}-{bom.product.model}-{bom.version}", bom.product.model, instance.object_no, "BOM 流程已完成，等待同步 ERP 物料结构和用量。")
+            auto_complete_project_deliverable(db, "BOM", bom.id)
     elif instance.object_type == "文档":
         document = db.query(models.Document).options(selectinload(models.Document.product)).filter(models.Document.id == instance.object_id).first()
         if document:
@@ -2061,6 +2177,7 @@ def complete_business_object(db: Session, instance: models.WorkflowInstance) -> 
             document.approval_status = "已签核"
             document.updated_at = today_text()
             create_integration_job(db, "QMS", "文档", document.doc_no, document.product.model, document.doc_no, "文档流程已完成，等待同步 QMS/文控归档。")
+            auto_complete_project_deliverable(db, "文档", document.id)
     elif instance.object_type == "变更":
         change = db.query(models.Change).options(selectinload(models.Change.product)).filter(models.Change.id == instance.object_id).first()
         if change:
@@ -2068,6 +2185,22 @@ def complete_business_object(db: Session, instance: models.WorkflowInstance) -> 
             if not change.submitted_at:
                 change.submitted_at = today_text()
             close_change_when_actions_done(db, change.id, "系统")
+
+
+def auto_complete_project_deliverable(db: Session, object_type: str, object_id: int) -> None:
+    """对象审批发布后，自动完成关联的项目交付物。"""
+    deliverables = (
+        db.query(models.ProjectDeliverable)
+        .filter(
+            models.ProjectDeliverable.object_type == object_type,
+            models.ProjectDeliverable.object_id == object_id,
+            models.ProjectDeliverable.status.notin_(["已完成", "已关闭"]),
+        )
+        .all()
+    )
+    for d in deliverables:
+        d.status = "已完成"
+        d.completed_at = today_text()
 
 
 def withdraw_business_object(db: Session, instance: models.WorkflowInstance) -> None:
@@ -2118,19 +2251,41 @@ def session_current(context: dict = Depends(current_user_context)) -> dict:
 
 
 @app.get("/api/admin/roles")
-def roles(db: Session = Depends(get_db)) -> list[dict]:
-    return [
-        {"id": row.id, "code": row.code, "name": row.name, "description": row.description, "permissions": row.permissions, "status": row.status}
-        for row in db.query(models.Role).order_by(models.Role.id).all()
-    ]
+def roles(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.Role)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.Role.code.ilike(kw) | models.Role.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.Role.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {"id": row.id, "code": row.code, "name": row.name, "description": row.description, "permissions": row.permissions, "status": row.status}
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.get("/api/admin/organizations")
-def organizations(db: Session = Depends(get_db)) -> list[dict]:
-    return [
-        {"id": row.id, "code": row.code, "name": row.name, "org_type": row.org_type, "parent_code": row.parent_code, "manager": row.manager, "status": row.status, "description": row.description}
-        for row in db.query(models.Organization).order_by(models.Organization.org_type, models.Organization.id).all()
-    ]
+def organizations(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.Organization)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.Organization.code.ilike(kw) | models.Organization.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.Organization.org_type, models.Organization.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {"id": row.id, "code": row.code, "name": row.name, "org_type": row.org_type, "parent_code": row.parent_code, "manager": row.manager, "status": row.status, "description": row.description}
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/admin/organizations", status_code=201)
@@ -2198,9 +2353,14 @@ def delete_role(role_id: int, db: Session = Depends(get_db), _: dict = Depends(r
 
 
 @app.get("/api/admin/foundation/coding-rules")
-def coding_rules(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.CodingRule).order_by(models.CodingRule.object_type, models.CodingRule.id).all()
-    return [serialize_coding_rule(row) for row in rows]
+def coding_rules(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.CodingRule)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.CodingRule.code.ilike(kw) | models.CodingRule.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.CodingRule.object_type, models.CodingRule.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [serialize_coding_rule(row) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/admin/foundation/coding-rules", status_code=201)
@@ -2234,14 +2394,14 @@ def delete_coding_rule(rule_id: int, db: Session = Depends(get_db), _: dict = De
 
 
 @app.get("/api/admin/foundation/categories")
-def category_templates(db: Session = Depends(get_db)) -> list[dict]:
-    rows = (
-        db.query(models.CategoryTemplate)
-        .options(selectinload(models.CategoryTemplate.attributes))
-        .order_by(models.CategoryTemplate.object_type, models.CategoryTemplate.id)
-        .all()
-    )
-    return [serialize_category_template(row) for row in rows]
+def category_templates(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.CategoryTemplate).options(selectinload(models.CategoryTemplate.attributes))
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.CategoryTemplate.code.ilike(kw) | models.CategoryTemplate.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.CategoryTemplate.object_type, models.CategoryTemplate.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [serialize_category_template(row) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/admin/foundation/categories", status_code=201)
@@ -2312,14 +2472,14 @@ def delete_attribute_template(attribute_id: int, db: Session = Depends(get_db), 
 
 
 @app.get("/api/admin/foundation/lifecycles")
-def lifecycle_templates(db: Session = Depends(get_db)) -> list[dict]:
-    rows = (
-        db.query(models.LifecycleTemplate)
-        .options(selectinload(models.LifecycleTemplate.states))
-        .order_by(models.LifecycleTemplate.object_type, models.LifecycleTemplate.id)
-        .all()
-    )
-    return [serialize_lifecycle_template(row) for row in rows]
+def lifecycle_templates(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.LifecycleTemplate).options(selectinload(models.LifecycleTemplate.states))
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.LifecycleTemplate.code.ilike(kw) | models.LifecycleTemplate.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.LifecycleTemplate.object_type, models.LifecycleTemplate.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [serialize_lifecycle_template(row) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/admin/foundation/lifecycles", status_code=201)
@@ -2390,9 +2550,19 @@ def delete_lifecycle_state(state_id: int, db: Session = Depends(get_db)) -> dict
 
 
 @app.get("/api/admin/foundation/dictionaries")
-def dictionary_items(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.DictionaryItem).order_by(models.DictionaryItem.dict_code, models.DictionaryItem.sequence, models.DictionaryItem.id).all()
-    return [serialize_dictionary_item(row) for row in rows]
+def dictionary_items(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.DictionaryItem)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(
+            models.DictionaryItem.dict_code.ilike(kw)
+            | models.DictionaryItem.dict_name.ilike(kw)
+            | models.DictionaryItem.item_value.ilike(kw)
+            | models.DictionaryItem.item_label.ilike(kw)
+        )
+    total = q.count()
+    rows = q.order_by(models.DictionaryItem.dict_code, models.DictionaryItem.sequence, models.DictionaryItem.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [serialize_dictionary_item(row) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/admin/foundation/dictionaries", status_code=201)
@@ -2426,11 +2596,26 @@ def delete_dictionary_item(item_id: int, db: Session = Depends(get_db)) -> dict:
 
 
 @app.get("/api/admin/users")
-def users(db: Session = Depends(get_db)) -> list[dict]:
-    return [
-        {"id": row.id, "username": row.username, "display_name": row.display_name, "role": row.role, "department": row.department}
-        for row in db.query(models.User).order_by(models.User.id).all()
-    ]
+def users(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.User)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(
+            models.User.username.ilike(kw)
+            | models.User.display_name.ilike(kw)
+            | models.User.role.ilike(kw)
+        )
+    total = q.count()
+    rows = q.order_by(models.User.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {"id": row.id, "username": row.username, "display_name": row.display_name, "role": row.role, "department": row.department}
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/admin/users", status_code=201)
@@ -2466,24 +2651,34 @@ def delete_user(user_id: int, db: Session = Depends(get_db), _: dict = Depends(r
 
 
 @app.get("/api/admin/workflows")
-def workflow_templates(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.WorkflowTemplate).options(selectinload(models.WorkflowTemplate.nodes)).order_by(models.WorkflowTemplate.id).all()
-    return [
-        {
-            "id": row.id,
-            "code": row.code,
-            "name": row.name,
-            "object_type": row.object_type,
-            "project_type": row.project_type,
-            "status": row.status,
-            "description": row.description,
-            "nodes": [
-                {"id": node.id, "sequence": node.sequence, "name": node.name, "role_name": node.role_name, "action_type": node.action_type, "sla_hours": node.sla_hours}
-                for node in sorted(row.nodes, key=lambda item: item.sequence)
-            ],
-        }
-        for row in rows
-    ]
+def workflow_templates(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.WorkflowTemplate).options(selectinload(models.WorkflowTemplate.nodes))
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.WorkflowTemplate.code.ilike(kw) | models.WorkflowTemplate.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.WorkflowTemplate.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {
+                "id": row.id,
+                "code": row.code,
+                "name": row.name,
+                "object_type": row.object_type,
+                "project_type": row.project_type,
+                "status": row.status,
+                "description": row.description,
+                "nodes": [
+                    {"id": node.id, "sequence": node.sequence, "name": node.name, "role_name": node.role_name, "action_type": node.action_type, "sla_hours": node.sla_hours}
+                    for node in sorted(row.nodes, key=lambda item: item.sequence)
+                ],
+            }
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/admin/workflows", status_code=201)
@@ -2549,22 +2744,33 @@ def delete_workflow_node(node_id: int, db: Session = Depends(get_db), _: dict = 
 
 
 @app.get("/api/admin/integration-endpoints")
-def integration_endpoints(db: Session = Depends(get_db)) -> list[dict]:
-    return [
-        {
-            "id": row.id,
-            "code": row.code,
-            "name": row.name,
-            "system_type": row.system_type,
-            "base_url": row.base_url,
-            "auth_type": row.auth_type,
-            "direction": row.direction,
-            "status": row.status,
-            "owner": row.owner,
-            "object_scope": row.object_scope,
-        }
-        for row in db.query(models.IntegrationEndpoint).order_by(models.IntegrationEndpoint.id).all()
-    ]
+def integration_endpoints(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.IntegrationEndpoint)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.IntegrationEndpoint.code.ilike(kw) | models.IntegrationEndpoint.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.IntegrationEndpoint.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {
+                "id": row.id,
+                "code": row.code,
+                "name": row.name,
+                "system_type": row.system_type,
+                "base_url": row.base_url,
+                "auth_type": row.auth_type,
+                "direction": row.direction,
+                "status": row.status,
+                "owner": row.owner,
+                "object_scope": row.object_scope,
+            }
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/admin/integration-endpoints", status_code=201)
@@ -2598,51 +2804,67 @@ def delete_integration_endpoint(endpoint_id: int, db: Session = Depends(get_db),
 
 
 @app.get("/api/workflow-instances")
-def workflow_instances(db: Session = Depends(get_db)) -> list[dict]:
-    rows = (
+def workflow_instances(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = (
         db.query(models.WorkflowInstance)
         .options(
             selectinload(models.WorkflowInstance.template),
             selectinload(models.WorkflowInstance.tasks),
             selectinload(models.WorkflowInstance.logs),
         )
-        .order_by(models.WorkflowInstance.id.desc())
-        .all()
     )
-    return [serialize_workflow_instance(row) for row in rows]
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.WorkflowInstance.object_no.ilike(kw) | models.WorkflowInstance.title.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.WorkflowInstance.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [serialize_workflow_instance(row) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.get("/api/workflow-tasks")
-def workflow_tasks(db: Session = Depends(get_db)) -> list[dict]:
-    rows = (
+def workflow_tasks(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = (
         db.query(models.WorkflowTask)
         .join(models.WorkflowInstance)
         .options(selectinload(models.WorkflowTask.instance).selectinload(models.WorkflowInstance.template))
-        .order_by(models.WorkflowTask.status.desc(), models.WorkflowTask.id)
-        .all()
     )
-    return [
-        {
-            "id": row.id,
-            "instance_id": row.instance_id,
-            "object_type": row.instance.object_type,
-            "object_no": row.instance.object_no,
-            "title": row.instance.title,
-            "product_model": row.instance.product_model,
-            "template_name": row.instance.template.name if row.instance.template else "",
-            "sequence": row.sequence,
-            "node_name": row.node_name,
-            "role_name": row.role_name,
-            "action_type": row.action_type,
-            "status": row.status,
-            "assignee": row.assignee,
-            "acted_by": row.acted_by,
-            "acted_at": row.acted_at,
-            "comment": row.comment,
-            "sla_hours": row.sla_hours,
-        }
-        for row in rows
-    ]
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(
+            models.WorkflowTask.node_name.ilike(kw)
+            | models.WorkflowTask.assignee.ilike(kw)
+            | models.WorkflowInstance.object_no.ilike(kw)
+            | models.WorkflowInstance.title.ilike(kw)
+        )
+    total = q.count()
+    rows = q.order_by(models.WorkflowTask.status.desc(), models.WorkflowTask.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {
+                "id": row.id,
+                "instance_id": row.instance_id,
+                "object_type": row.instance.object_type,
+                "object_no": row.instance.object_no,
+                "title": row.instance.title,
+                "product_model": row.instance.product_model,
+                "template_name": row.instance.template.name if row.instance.template else "",
+                "sequence": row.sequence,
+                "node_name": row.node_name,
+                "role_name": row.role_name,
+                "action_type": row.action_type,
+                "status": row.status,
+                "assignee": row.assignee,
+                "acted_by": row.acted_by,
+                "acted_at": row.acted_at,
+                "comment": row.comment,
+                "sla_hours": row.sla_hours,
+            }
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/workflow-tasks/{task_id}/approve")
@@ -2771,7 +2993,7 @@ def withdraw_workflow_instance(instance_id: int, payload: WorkflowWithdrawPayloa
 @app.get("/api/dashboard")
 def dashboard(db: Session = Depends(get_db)) -> dict:
     product_count = db.query(models.Product).count()
-    active_projects = db.query(models.Project).filter(models.Project.phase != "量产").count()
+    active_projects = db.query(models.Project).filter(models.Project.phase != "量产导入").count()
     pending_changes = db.query(models.Change).filter(models.Change.status.in_(["审批中", "执行中"])).count()
     docs = db.query(models.Document).count()
     signed_docs = db.query(models.Document).filter(models.Document.approval_status == "已签核").count()
@@ -2782,6 +3004,18 @@ def dashboard(db: Session = Depends(get_db)) -> dict:
     changes_rows = db.query(models.Change.change_type, func.count(models.Change.id)).group_by(models.Change.change_type).all()
     quality_rows = db.query(models.QualityLot.tested_at, func.avg(models.QualityLot.cp_yield), func.avg(models.QualityLot.ft_yield)).group_by(models.QualityLot.tested_at).order_by(models.QualityLot.tested_at).all()
 
+    # 新增聚合指标
+    integration_pending = db.query(models.IntegrationJob).filter(models.IntegrationJob.status.in_(["待处理", "处理中", "失败"])).count()
+    integration_failed = db.query(models.IntegrationJob).filter(models.IntegrationJob.status == "失败").count()
+    quality_open_issues = db.query(models.QualityIssue).filter(models.QualityIssue.status != "已关闭").count()
+    capa_open = db.query(models.QualityCAPA).filter(models.QualityCAPA.status != "已关闭").count()
+    deliverable_pending = db.query(models.ProjectDeliverable).filter(models.ProjectDeliverable.status.notin_(["已完成", "已关闭"])).count()
+    recent_reports = db.query(models.QualityReport).count()
+
+    project_rows = db.query(models.Project.phase, func.count(models.Project.id)).group_by(models.Project.phase).all()
+    integration_status_rows = db.query(models.IntegrationJob.status, func.count(models.IntegrationJob.id)).group_by(models.IntegrationJob.status).all()
+    change_status_rows = db.query(models.Change.status, func.count(models.Change.id)).group_by(models.Change.status).all()
+
     return {
         "metrics": {
             "products": product_count,
@@ -2789,10 +3023,19 @@ def dashboard(db: Session = Depends(get_db)) -> dict:
             "pending_changes": pending_changes,
             "document_readiness": round((signed_docs / docs) * 100) if docs else 0,
             "bom_readiness": round((bom_ready / bom_total) * 100) if bom_total else 0,
+            "integration_pending": integration_pending,
+            "integration_failed": integration_failed,
+            "quality_open_issues": quality_open_issues,
+            "capa_open": capa_open,
+            "deliverable_pending": deliverable_pending,
+            "quality_reports": recent_reports,
         },
         "lifecycle": [{"name": name, "value": value} for name, value in lifecycle_rows],
         "changes": [{"name": name, "value": value} for name, value in changes_rows],
         "quality_trend": [{"date": date, "cp": round(cp, 1), "ft": round(ft, 1)} for date, cp, ft in quality_rows],
+        "project_phases": [{"name": name, "value": value} for name, value in project_rows],
+        "integration_status": [{"name": name, "value": value} for name, value in integration_status_rows],
+        "change_status": [{"name": name, "value": value} for name, value in change_status_rows],
         "recent_tasks": [
             {
                 "name": task.name,
@@ -2807,8 +3050,24 @@ def dashboard(db: Session = Depends(get_db)) -> dict:
 
 
 @app.get("/api/products")
-def products(db: Session = Depends(get_db)) -> list[dict]:
-    return [serialize_product(product) for product in db.query(models.Product).order_by(models.Product.id).all()]
+def products(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.Product)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(
+            models.Product.code.ilike(kw)
+            | models.Product.model.ilike(kw)
+            | models.Product.name.ilike(kw)
+            | models.Product.product_type.ilike(kw)
+        )
+    total = q.count()
+    rows = q.order_by(models.Product.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [serialize_product(p) for p in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/products", status_code=201)
@@ -2830,6 +3089,7 @@ def product_detail(product_id: int, db: Session = Depends(get_db)) -> dict:
             selectinload(models.Product.process_routes).selectinload(models.ProcessRoute.steps),
             selectinload(models.Product.changes).selectinload(models.Change.impacts),
             selectinload(models.Product.quality_lots),
+            selectinload(models.Product.requirements),
         )
         .filter(models.Product.id == product_id)
         .first()
@@ -2837,6 +3097,13 @@ def product_detail(product_id: int, db: Session = Depends(get_db)) -> dict:
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     data = serialize_product(product)
+    # 项目通过 product_model 字符串关联，非外键，单独查询
+    linked_projects = (
+        db.query(models.Project)
+        .filter(models.Project.product_model == product.model)
+        .order_by(models.Project.id.desc())
+        .all()
+    )
     data.update(
         {
             "boms": [{"id": bom.id, "type": bom.bom_type, "version": bom.version, "status": bom.status, "owner": bom.owner, "release_date": bom.release_date} for bom in product.bom_headers],
@@ -2844,6 +3111,8 @@ def product_detail(product_id: int, db: Session = Depends(get_db)) -> dict:
             "routes": [{"id": route.id, "route_no": route.route_no, "name": route.name, "version": route.version, "status": route.status, "steps": len(route.steps)} for route in product.process_routes],
             "changes": [{"id": change.id, "change_no": change.change_no, "title": change.title, "status": change.status, "priority": change.priority} for change in product.changes],
             "quality": [{"lot_no": lot.lot_no, "stage": lot.stage, "cp_yield": lot.cp_yield, "ft_yield": lot.ft_yield, "status": lot.status} for lot in product.quality_lots],
+            "requirements": [{"id": req.id, "req_no": req.req_no, "title": req.title, "source": req.source, "category": req.category, "priority": req.priority, "status": req.status, "owner": req.owner} for req in product.requirements],
+            "projects": [{"id": proj.id, "project_no": proj.project_no, "name": proj.name, "phase": proj.phase, "progress": proj.progress, "owner": proj.owner, "risk_level": proj.risk_level} for proj in linked_projects],
         }
     )
     return data
@@ -2901,9 +3170,14 @@ def create_product_version(product_id: int, payload: ProductVersionPayload, db: 
 
 
 @app.get("/api/boms")
-def boms(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.BomHeader).options(selectinload(models.BomHeader.product), selectinload(models.BomHeader.items)).all()
-    return [serialize_bom(row) for row in rows]
+def boms(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.BomHeader).options(selectinload(models.BomHeader.product), selectinload(models.BomHeader.items))
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.join(models.Product).filter(models.BomHeader.bom_type.ilike(kw) | models.BomHeader.version.ilike(kw) | models.Product.model.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.BomHeader.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [serialize_bom(row) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/boms", status_code=201)
@@ -3169,6 +3443,9 @@ def approve_bom(bom_id: int, db: Session = Depends(get_db), _: dict = Depends(re
         raise HTTPException(status_code=404, detail="BOM not found")
     if not bom.items:
         raise HTTPException(status_code=409, detail="BOM has no items")
+    if bom.source_bom_id:
+        generated_no = f"{bom.bom_type}-{bom.product.model}-{bom.version}"
+        validate_eca_generated_object_ready(db, "BOM", bom.id, generated_no)
     if bom.status == "已发布" and is_current_effective_bom(bom):
         return {"id": bom.id, "status": bom.status, "release_date": bom.release_date, "effective_date": bom.effective_date, "expiry_date": bom.expiry_date, "closed_versions": []}
     if not bom.effective_date:
@@ -3191,21 +3468,20 @@ def approve_bom(bom_id: int, db: Session = Depends(get_db), _: dict = Depends(re
 
 
 @app.get("/api/materials")
-def materials(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.Material).order_by(models.Material.category, models.Material.code).all()
-    return [
-        {
-            "id": row.id,
-            "code": row.code,
-            "name": row.name,
-            "category": row.category,
-            "specification": row.specification,
-            "supplier": row.supplier,
-            "risk_level": row.risk_level,
-            "lifecycle": row.lifecycle,
-        }
-        for row in rows
-    ]
+def materials(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.Material)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.Material.code.ilike(kw) | models.Material.name.ilike(kw) | models.Material.category.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.Material.category, models.Material.code).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {"id": row.id, "code": row.code, "name": row.name, "category": row.category, "specification": row.specification, "supplier": row.supplier, "risk_level": row.risk_level, "lifecycle": row.lifecycle}
+            for row in rows
+        ],
+        "total": total, "page": page, "page_size": page_size,
+    }
 
 
 @app.post("/api/materials", status_code=201)
@@ -3260,24 +3536,20 @@ def delete_material(material_id: int, db: Session = Depends(get_db), _: dict = D
 
 
 @app.get("/api/documents")
-def documents(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.Document).options(selectinload(models.Document.product)).order_by(models.Document.id).all()
-    return [
-        {
-            "id": row.id,
-            "doc_no": row.doc_no,
-            "title": row.title,
-            "category": row.category,
-            "version": row.version,
-            "status": row.status,
-            "approval_status": row.approval_status,
-            "owner": row.owner,
-            "updated_at": row.updated_at,
-            "product_model": row.product.model,
-            "product_id": row.product_id,
-        }
-        for row in rows
-    ]
+def documents(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.Document).options(selectinload(models.Document.product))
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.Document.doc_no.ilike(kw) | models.Document.title.ilike(kw) | models.Document.category.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.Document.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {"id": row.id, "doc_no": row.doc_no, "title": row.title, "category": row.category, "version": row.version, "status": row.status, "approval_status": row.approval_status, "owner": row.owner, "updated_at": row.updated_at, "product_model": row.product.model, "product_id": row.product_id}
+            for row in rows
+        ],
+        "total": total, "page": page, "page_size": page_size,
+    }
 
 
 @app.post("/api/documents", status_code=201)
@@ -3370,6 +3642,7 @@ def approve_document(document_id: int, db: Session = Depends(get_db), _: dict = 
     document = db.query(models.Document).options(selectinload(models.Document.product)).filter(models.Document.id == document_id).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+    validate_eca_generated_object_ready(db, "文档", document.id, document.doc_no)
     document.status = "已发布"
     document.approval_status = "已签核"
     document.updated_at = today_text()
@@ -3387,24 +3660,20 @@ def approve_document(document_id: int, db: Session = Depends(get_db), _: dict = 
 
 
 @app.get("/api/requirements")
-def requirements(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.Requirement).options(selectinload(models.Requirement.product)).order_by(models.Requirement.id).all()
-    return [
-        {
-            "id": row.id,
-            "req_no": row.req_no,
-            "source": row.source,
-            "category": row.category,
-            "title": row.title,
-            "priority": row.priority,
-            "status": row.status,
-            "owner": row.owner,
-            "acceptance_criteria": row.acceptance_criteria,
-            "product_model": row.product.model,
-            "product_id": row.product_id,
-        }
-        for row in rows
-    ]
+def requirements(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.Requirement).options(selectinload(models.Requirement.product))
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.Requirement.req_no.ilike(kw) | models.Requirement.title.ilike(kw) | models.Requirement.category.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.Requirement.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {"id": row.id, "req_no": row.req_no, "source": row.source, "category": row.category, "title": row.title, "priority": row.priority, "status": row.status, "owner": row.owner, "acceptance_criteria": row.acceptance_criteria, "product_model": row.product.model, "product_id": row.product_id}
+            for row in rows
+        ],
+        "total": total, "page": page, "page_size": page_size,
+    }
 
 
 @app.post("/api/requirements", status_code=201)
@@ -3466,42 +3735,129 @@ def delete_requirement(requirement_id: int, db: Session = Depends(get_db), _: di
     return {"deleted": True}
 
 
-@app.get("/api/baselines")
-def baselines(db: Session = Depends(get_db)) -> list[dict]:
-    rows = (
-        db.query(models.ProductBaseline)
-        .options(selectinload(models.ProductBaseline.product), selectinload(models.ProductBaseline.items))
-        .order_by(models.ProductBaseline.id)
+@app.get("/api/requirements/{requirement_id}/trace")
+def requirement_trace(requirement_id: int, db: Session = Depends(get_db)) -> dict:
+    """需求追溯链路：需求 -> 产品 -> BOM/变更/项目/文档/工艺"""
+    requirement = (
+        db.query(models.Requirement)
+        .options(selectinload(models.Requirement.product))
+        .filter(models.Requirement.id == requirement_id)
+        .first()
+    )
+    if not requirement:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    product = requirement.product
+    if not product:
+        return {"requirement": {"req_no": requirement.req_no, "title": requirement.title}, "product": None, "boms": [], "changes": [], "projects": [], "documents": [], "routes": []}
+    # 聚合该产品下游对象
+    boms = (
+        db.query(models.BomHeader)
+        .filter(models.BomHeader.product_id == product.id)
+        .order_by(models.BomHeader.id.desc())
         .all()
     )
-    return [
-        {
-            "id": row.id,
-            "baseline_no": row.baseline_no,
-            "name": row.name,
-            "product_model": row.product.model,
-            "version": row.version,
-            "status": row.status,
-            "created_by": row.created_by,
-            "released_at": row.released_at,
-            "items": [
-                {
-                    "id": item.id,
-                    "item_type": item.item_type,
-                    "item_no": item.item_no,
-                    "title": item.title,
-                    "version": item.version,
-                    "status": item.status,
-                }
-                for item in row.items
-            ],
-        }
-        for row in rows
-    ]
+    changes = (
+        db.query(models.Change)
+        .filter(models.Change.product_id == product.id)
+        .order_by(models.Change.id.desc())
+        .limit(20)
+        .all()
+    )
+    documents = (
+        db.query(models.Document)
+        .filter(models.Document.product_id == product.id)
+        .order_by(models.Document.id.desc())
+        .limit(20)
+        .all()
+    )
+    routes = (
+        db.query(models.ProcessRoute)
+        .filter(models.ProcessRoute.product_id == product.id)
+        .order_by(models.ProcessRoute.id.desc())
+        .all()
+    )
+    # 项目通过 product_model 字符串关联
+    projects = (
+        db.query(models.Project)
+        .filter(models.Project.product_model == product.model)
+        .order_by(models.Project.id.desc())
+        .all()
+    )
+    return {
+        "requirement": {
+            "id": requirement.id,
+            "req_no": requirement.req_no,
+            "title": requirement.title,
+            "source": requirement.source,
+            "category": requirement.category,
+            "priority": requirement.priority,
+            "status": requirement.status,
+            "owner": requirement.owner,
+            "acceptance_criteria": requirement.acceptance_criteria,
+        },
+        "product": {
+            "id": product.id,
+            "model": product.model,
+            "name": product.name,
+            "lifecycle": product.lifecycle,
+            "version": product.version,
+            "readiness": product.readiness,
+        },
+        "boms": [{"id": b.id, "type": b.bom_type, "version": b.version, "status": b.status, "owner": b.owner, "release_date": b.release_date} for b in boms],
+        "changes": [{"id": c.id, "change_no": c.change_no, "title": c.title, "status": c.status, "priority": c.priority} for c in changes],
+        "documents": [{"id": d.id, "doc_no": d.doc_no, "title": d.title, "category": d.category, "version": d.version, "status": d.status} for d in documents],
+        "routes": [{"id": r.id, "route_no": r.route_no, "name": r.name, "version": r.version, "status": r.status} for r in routes],
+        "projects": [{"id": p.id, "project_no": p.project_no, "name": p.name, "phase": p.phase, "progress": p.progress, "owner": p.owner, "risk_level": p.risk_level} for p in projects],
+    }
+
+
+@app.get("/api/baselines")
+def baselines(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = (
+        db.query(models.ProductBaseline)
+        .options(selectinload(models.ProductBaseline.product), selectinload(models.ProductBaseline.items))
+    )
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.ProductBaseline.baseline_no.ilike(kw) | models.ProductBaseline.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.ProductBaseline.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {
+                "id": row.id,
+                "baseline_no": row.baseline_no,
+                "name": row.name,
+                "product_model": row.product.model,
+                "version": row.version,
+                "status": row.status,
+                "created_by": row.created_by,
+                "released_at": row.released_at,
+                "items": [
+                    {
+                        "id": item.id,
+                        "item_type": item.item_type,
+                        "item_no": item.item_no,
+                        "title": item.title,
+                        "version": item.version,
+                        "status": item.status,
+                    }
+                    for item in row.items
+                ],
+            }
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.get("/api/workbench")
-def workbench(db: Session = Depends(get_db)) -> dict:
+def workbench(db: Session = Depends(get_db), context: dict = Depends(current_user_context)) -> dict:
+    user = context["user"]
+    user_display = user.display_name
+
     approvals = (
         db.query(models.Approval)
         .join(models.Change)
@@ -3512,6 +3868,59 @@ def workbench(db: Session = Depends(get_db)) -> dict:
         .all()
     )
     gate_rows = db.query(models.Product).order_by(models.Product.readiness).limit(8).all()
+
+    my_changes = (
+        db.query(models.Change)
+        .join(models.Product)
+        .filter(models.Change.owner == user_display)
+        .order_by(models.Change.id.desc())
+        .limit(10)
+        .all()
+    )
+
+    my_projects = (
+        db.query(models.Project)
+        .filter(models.Project.owner == user_display)
+        .order_by(models.Project.id.desc())
+        .limit(10)
+        .all()
+    )
+
+    my_tasks = (
+        db.query(models.ProjectTask)
+        .join(models.Project)
+        .filter(models.ProjectTask.owner == user_display, models.ProjectTask.status != "已完成")
+        .order_by(models.ProjectTask.due_date)
+        .limit(10)
+        .all()
+    )
+
+    my_quality_issues = (
+        db.query(models.QualityIssue)
+        .filter(models.QualityIssue.owner == user_display, models.QualityIssue.status != "已关闭")
+        .order_by(models.QualityIssue.id.desc())
+        .limit(10)
+        .all()
+    )
+
+    recent_changes = (
+        db.query(models.Change)
+        .join(models.Product)
+        .filter(models.Change.status.in_(["审批中", "执行中", "已关闭"]))
+        .order_by(models.Change.id.desc())
+        .limit(8)
+        .all()
+    )
+
+    pending_workflow_tasks = (
+        db.query(models.WorkflowTask)
+        .join(models.WorkflowInstance)
+        .filter(models.WorkflowTask.status == "待处理")
+        .order_by(models.WorkflowTask.id.desc())
+        .limit(8)
+        .all()
+    )
+
     return {
         "todo_approvals": [
             {
@@ -3538,13 +3947,348 @@ def workbench(db: Session = Depends(get_db)) -> dict:
             }
             for product in gate_rows
         ],
+        "my_changes": [
+            {
+                "id": c.id,
+                "change_no": c.change_no,
+                "title": c.title,
+                "product_model": c.product.model,
+                "status": c.status,
+                "priority": c.priority,
+                "submitted_at": c.submitted_at,
+            }
+            for c in my_changes
+        ],
+        "my_projects": [
+            {
+                "id": p.id,
+                "project_no": p.project_no,
+                "name": p.name,
+                "product_model": p.product_model,
+                "phase": p.phase,
+                "progress": p.progress,
+                "end_date": p.end_date,
+                "risk_level": p.risk_level,
+            }
+            for p in my_projects
+        ],
+        "my_tasks": [
+            {
+                "id": t.id,
+                "name": t.name,
+                "phase": t.phase,
+                "status": t.status,
+                "due_date": t.due_date,
+                "project_no": t.project.project_no if t.project else "",
+            }
+            for t in my_tasks
+        ],
+        "my_quality_issues": [
+            {
+                "id": i.id,
+                "issue_no": i.issue_no,
+                "title": i.title,
+                "product_model": i.product_model,
+                "severity": i.severity,
+                "status": i.status,
+            }
+            for i in my_quality_issues
+        ],
+        "recent_changes": [
+            {
+                "id": c.id,
+                "change_no": c.change_no,
+                "title": c.title,
+                "product_model": c.product.model,
+                "status": c.status,
+                "priority": c.priority,
+                "submitted_at": c.submitted_at,
+            }
+            for c in recent_changes
+        ],
+        "pending_workflow_tasks": [
+            {
+                "id": t.id,
+                "instance_id": t.instance_id,
+                "node_name": t.node_name,
+                "role_name": t.role_name,
+                "status": t.status,
+                "object_type": t.instance.object_type if t.instance else "",
+                "object_no": t.instance.object_no if t.instance else "",
+                "title": t.instance.title if t.instance else "",
+            }
+            for t in pending_workflow_tasks
+        ],
+    }
+
+
+@app.get("/api/workbench/calendar")
+def workbench_calendar(month: str, db: Session = Depends(get_db), context: dict = Depends(current_user_context)) -> dict:
+    """工作台任务日历：聚合当前用户在该月内截止的项目任务/ECA动作/项目交付物"""
+    user = context["user"]
+    user_display = user.display_name
+    # month 格式 YYYY-MM，构造当月起止
+    try:
+        year, mon = month.split("-")
+        year_i, mon_i = int(year), int(mon)
+        start = f"{year_i:04d}-{mon_i:02d}-01"
+        if mon_i == 12:
+            end = f"{year_i + 1:04d}-01-01"
+        else:
+            end = f"{year_i:04d}-{mon_i + 1:02d}-01"
+    except Exception:
+        raise HTTPException(status_code=400, detail="month must be YYYY-MM")
+
+    items: list[dict] = []
+
+    # 项目任务
+    tasks = (
+        db.query(models.ProjectTask, models.Project)
+        .join(models.Project, models.ProjectTask.project_id == models.Project.id)
+        .filter(
+            models.ProjectTask.owner == user_display,
+            models.ProjectTask.due_date >= start,
+            models.ProjectTask.due_date < end,
+        )
+        .order_by(models.ProjectTask.due_date)
+        .all()
+    )
+    for t, proj in tasks:
+        items.append({
+            "type": "项目任务",
+            "no": t.name,
+            "title": t.name,
+            "owner": t.owner,
+            "status": t.status,
+            "due_date": t.due_date,
+            "source_no": proj.project_no if proj else "",
+            "source_name": proj.name if proj else "",
+        })
+
+    # ECA 动作
+    actions = (
+        db.query(models.ChangeAction)
+        .filter(
+            models.ChangeAction.owner == user_display,
+            models.ChangeAction.due_date >= start,
+            models.ChangeAction.due_date < end,
+            models.ChangeAction.due_date != "",
+        )
+        .order_by(models.ChangeAction.due_date)
+        .all()
+    )
+    for a in actions:
+        change = db.query(models.Change).filter(models.Change.id == a.change_id).first()
+        items.append({
+            "type": "ECA动作",
+            "no": a.action_no,
+            "title": a.target_object or a.action_no,
+            "owner": a.owner,
+            "status": a.status,
+            "due_date": a.due_date,
+            "source_no": change.change_no if change else "",
+            "source_name": change.title if change else "",
+        })
+
+    # 项目交付物
+    deliverables = (
+        db.query(models.ProjectDeliverable, models.Project)
+        .join(models.Project, models.ProjectDeliverable.project_id == models.Project.id)
+        .filter(
+            models.ProjectDeliverable.owner == user_display,
+            models.ProjectDeliverable.due_date >= start,
+            models.ProjectDeliverable.due_date < end,
+            models.ProjectDeliverable.due_date != "",
+        )
+        .order_by(models.ProjectDeliverable.due_date)
+        .all()
+    )
+    for d, proj in deliverables:
+        items.append({
+            "type": "项目交付物",
+            "no": d.name,
+            "title": d.name,
+            "owner": d.owner,
+            "status": d.status,
+            "due_date": d.due_date,
+            "source_no": proj.project_no if proj else "",
+            "source_name": proj.name if proj else "",
+        })
+
+    # 统计
+    by_type = {}
+    by_status = {}
+    overdue = 0
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    for it in items:
+        by_type[it["type"]] = by_type.get(it["type"], 0) + 1
+        by_status[it["status"]] = by_status.get(it["status"], 0) + 1
+        if it["due_date"] < today_str and it["status"] not in ["已完成", "已关闭"]:
+            overdue += 1
+
+    return {
+        "month": month,
+        "items": items,
+        "summary": {
+            "total": len(items),
+            "overdue": overdue,
+            "by_type": [{"name": k, "value": v} for k, v in by_type.items()],
+            "by_status": [{"name": k, "value": v} for k, v in by_status.items()],
+        },
+    }
+
+
+@app.get("/api/workbench/notifications")
+def workbench_notifications(action: str | None = None, limit: int = 50, db: Session = Depends(get_db)) -> dict:
+    """工作台消息通知：基于操作日志聚合关键事件（发布/关闭/驳回/提交/删除/失败）"""
+    # 关键动作白名单
+    key_actions = ["发布", "关闭", "驳回", "提交", "删除", "新增", "编辑"]
+    q = db.query(models.OperationLog).filter(models.OperationLog.action.in_(key_actions))
+    if action:
+        q = q.filter(models.OperationLog.action == action)
+    rows = q.order_by(models.OperationLog.id.desc()).limit(min(limit, 200)).all()
+    items = [
+        {
+            "id": row.id,
+            "action": row.action,
+            "object_type": row.object_type,
+            "object_no": row.object_no,
+            "summary": row.summary,
+            "operated_by": row.operated_by,
+            "operated_at": row.operated_at,
+            "level": _notify_level(row.action),
+        }
+        for row in rows
+    ]
+    # 按动作统计
+    by_action = {}
+    for it in items:
+        by_action[it["action"]] = by_action.get(it["action"], 0) + 1
+    return {
+        "items": items,
+        "total": len(items),
+        "by_action": [{"name": k, "value": v} for k, v in by_action.items()],
+    }
+
+
+def _notify_level(action: str) -> str:
+    """通知级别：danger/warning/info/success"""
+    if action in ["删除", "驳回"]:
+        return "danger"
+    if action in ["关闭", "发布"]:
+        return "success"
+    if action in ["提交"]:
+        return "warning"
+    return "info"
+
+
+@app.get("/api/workbench/closure-check")
+def workbench_closure_check(db: Session = Depends(get_db)) -> dict:
+    """业务闭环验证：按产品检查 9 个环节的数据完整性，定位断点"""
+    products = db.query(models.Product).order_by(models.Product.id).all()
+    # 环节定义：(key, label)
+    stages = [
+        ("requirement", "需求规格"),
+        ("product_version", "产品版本"),
+        ("bom", "BOM"),
+        ("process_route", "工艺路线"),
+        ("document", "文档"),
+        ("change", "工程变更"),
+        ("project", "项目"),
+        ("quality", "质量追溯"),
+        ("integration", "下游同步"),
+    ]
+
+    product_rows = []
+    full_closed = 0
+    total_breakpoints = 0
+
+    for p in products:
+        req_count = db.query(models.Requirement).filter(models.Requirement.product_id == p.id).count()
+        version_count = db.query(models.ProductVersion).filter(models.ProductVersion.product_id == p.id).count()
+        bom_count = db.query(models.BomHeader).filter(models.BomHeader.product_id == p.id).count()
+        route_count = db.query(models.ProcessRoute).filter(models.ProcessRoute.product_id == p.id).count()
+        doc_count = db.query(models.Document).filter(models.Document.product_id == p.id).count()
+        change_count = db.query(models.Change).filter(models.Change.product_id == p.id).count()
+        # 项目通过 product_model 关联
+        project_count = db.query(models.Project).filter(models.Project.product_model == p.model).count()
+        quality_count = db.query(models.QualityLot).filter(models.QualityLot.product_id == p.id).count()
+        # 集成：该产品相关对象产生的集成任务
+        integration_count = db.query(models.IntegrationJob).filter(models.IntegrationJob.product_model == p.model).count()
+
+        counts = {
+            "requirement": req_count,
+            "product_version": version_count,
+            "bom": bom_count,
+            "process_route": route_count,
+            "document": doc_count,
+            "change": change_count,
+            "project": project_count,
+            "quality": quality_count,
+            "integration": integration_count,
+        }
+        # 状态：有数据=ok，无数据=gap，有数据但发布率低=warn
+        stage_status = {}
+        breakpoints = 0
+        for key, _label in stages:
+            cnt = counts[key]
+            if cnt > 0:
+                stage_status[key] = "ok"
+            else:
+                stage_status[key] = "gap"
+                breakpoints += 1
+
+        if breakpoints == 0:
+            full_closed += 1
+        total_breakpoints += breakpoints
+
+        product_rows.append({
+            "id": p.id,
+            "model": p.model,
+            "name": p.name,
+            "lifecycle": p.lifecycle,
+            "owner": p.owner,
+            "readiness": p.readiness,
+            "counts": counts,
+            "stage_status": stage_status,
+            "breakpoints": breakpoints,
+            "closed": breakpoints == 0,
+        })
+
+    # 环节维度的覆盖率
+    stage_coverage = []
+    for key, label in stages:
+        ok_count = sum(1 for r in product_rows if r["stage_status"][key] == "ok")
+        stage_coverage.append({
+            "key": key,
+            "label": label,
+            "ok_count": ok_count,
+            "total": len(products),
+            "rate": round((ok_count / len(products)) * 100) if products else 0,
+        })
+
+    return {
+        "summary": {
+            "product_total": len(products),
+            "full_closed": full_closed,
+            "closure_rate": round((full_closed / len(products)) * 100) if products else 0,
+            "total_breakpoints": total_breakpoints,
+        },
+        "stages": [{"key": k, "label": l} for k, l in stages],
+        "stage_coverage": stage_coverage,
+        "products": product_rows,
     }
 
 
 @app.get("/api/process-routes")
-def process_routes(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.ProcessRoute).options(selectinload(models.ProcessRoute.product), selectinload(models.ProcessRoute.steps)).all()
-    return [serialize_process_route(row) for row in rows]
+def process_routes(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.ProcessRoute).options(selectinload(models.ProcessRoute.product), selectinload(models.ProcessRoute.steps))
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.ProcessRoute.route_no.ilike(kw) | models.ProcessRoute.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.ProcessRoute.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [serialize_process_route(row) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/process-routes", status_code=201)
@@ -3698,6 +4442,8 @@ def approve_process_route(route_id: int, payload: ProcessRouteActionPayload, db:
     if not route:
         raise HTTPException(status_code=404, detail="Process route not found")
     validate_process_route_ready(route)
+    if route.source_route_id:
+        validate_eca_generated_object_ready(db, "工艺路线", route.id, route.route_no)
     route.status = "已发布"
     route.release_date = today_text()
     create_integration_job(
@@ -3741,9 +4487,14 @@ def product_process_steps(product_id: int, db: Session = Depends(get_db)) -> lis
 
 
 @app.get("/api/changes")
-def changes(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.Change).options(selectinload(models.Change.product), selectinload(models.Change.impacts), selectinload(models.Change.approvals)).order_by(models.Change.id).all()
-    return [serialize_change(row, db) for row in rows]
+def changes(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.Change).options(selectinload(models.Change.product), selectinload(models.Change.impacts), selectinload(models.Change.approvals))
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.Change.change_no.ilike(kw) | models.Change.title.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.Change.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [serialize_change(row, db) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/changes", status_code=201)
@@ -3883,11 +4634,21 @@ def change_revision_archive(change_id: int, db: Session = Depends(get_db)) -> li
         .order_by(models.ChangeAction.id)
         .all()
     )
-    return [
-        {
+    archive_rows = []
+    for row in rows:
+        gate = get_eca_generated_object_gate(db, row.target_type, row.generated_object_no) or {
+            "ready": True,
+            "action_no": row.action_no,
+            "action_status": row.status,
+            "change_no": "",
+            "change_status": "",
+            "message": "生成对象已满足提交发布条件。",
+        }
+        archive_rows.append({
             "action_no": row.action_no,
             "action_type": row.action_type,
             "target_type": row.target_type,
+            "target_id": row.target_id,
             "source_object": row.target_object,
             "source_version": row.target_version,
             "effectivity_type": row.effectivity_type,
@@ -3897,6 +4658,10 @@ def change_revision_archive(change_id: int, db: Session = Depends(get_db)) -> li
             "generated_object_no": row.generated_object_no,
             "owner": row.owner,
             "status": row.status,
+            "change_no": gate["change_no"],
+            "change_status": gate["change_status"],
+            "release_gate_status": "可提交" if gate["ready"] else "待变更闭环",
+            "release_gate_message": gate["message"],
             "target_url": (
                 f"/boms?highlight={row.target_id}" if row.target_type == "BOM"
                 else f"/documents?highlight={row.target_id}" if row.target_type == "文档"
@@ -3909,9 +4674,8 @@ def change_revision_archive(change_id: int, db: Session = Depends(get_db)) -> li
                 else f"/process?highlight={row.generated_object_no}" if "ROUTE" in (row.generated_object_no or "")
                 else ""
             ),
-        }
-        for row in rows
-    ]
+        })
+    return archive_rows
 
 
 @app.put("/api/change-actions/{action_id}")
@@ -3968,32 +4732,356 @@ def close_change_action(action_id: int, payload: ChangeActionClosePayload, db: S
 
 
 @app.get("/api/change-actions")
-def change_actions(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.ChangeAction).join(models.Change).join(models.Product).order_by(models.ChangeAction.id).all()
-    return [
-        {
-            "id": row.id,
-            "action_no": row.action_no,
-            "change_no": row.change.change_no,
-            "product_model": row.change.product.model,
-            "action_type": row.action_type,
-            "target_type": row.target_type,
-            "target_id": row.target_id,
-            "target_version": row.target_version,
-            "target_object": row.target_object,
-            "effectivity_type": row.effectivity_type,
-            "effectivity_scope": row.effectivity_scope,
-            "effective_date": row.effective_date,
-            "effective_batch": row.effective_batch,
-            "generated_object_no": row.generated_object_no,
-            "department": row.department,
-            "owner": row.owner,
-            "status": row.status,
-            "due_date": row.due_date,
-            "result": row.result,
+def change_actions(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.ChangeAction).join(models.Change).join(models.Product)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.ChangeAction.action_no.ilike(kw) | models.ChangeAction.target_object.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.ChangeAction.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {
+                "id": row.id,
+                "action_no": row.action_no,
+                "change_no": row.change.change_no,
+                "product_model": row.change.product.model,
+                "action_type": row.action_type,
+                "target_type": row.target_type,
+                "target_id": row.target_id,
+                "target_version": row.target_version,
+                "target_object": row.target_object,
+                "effectivity_type": row.effectivity_type,
+                "effectivity_scope": row.effectivity_scope,
+                "effective_date": row.effective_date,
+                "effective_batch": row.effective_batch,
+                "generated_object_no": row.generated_object_no,
+                "department": row.department,
+                "owner": row.owner,
+                "status": row.status,
+                "due_date": row.due_date,
+                "result": row.result,
+            }
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@app.get("/api/products/{product_id}/effectivity-batches")
+def product_effectivity_batches(product_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    """按产品聚合所有 ECA 动作的生效批次，用于批次控制总览。"""
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    actions = (
+        db.query(models.ChangeAction)
+        .join(models.Change)
+        .filter(models.Change.product_id == product_id)
+        .order_by(models.ChangeAction.id)
+        .all()
+    )
+
+    batch_map: dict[str, dict] = {}
+    no_batch_rows: list[dict] = []
+    for action in actions:
+        change = db.query(models.Change).filter(models.Change.id == action.change_id).first()
+        change_no = change.change_no if change else ""
+        change_status = change.status if change else ""
+        gate = get_eca_generated_object_gate(db, action.target_type, action.generated_object_no) if action.generated_object_no else None
+        row = {
+            "action_no": action.action_no,
+            "action_type": action.action_type,
+            "target_type": action.target_type,
+            "target_object": action.target_object,
+            "target_version": action.target_version,
+            "generated_object_no": action.generated_object_no,
+            "effectivity_type": action.effectivity_type,
+            "effectivity_scope": action.effectivity_scope,
+            "effective_date": action.effective_date,
+            "effective_batch": action.effective_batch,
+            "owner": action.owner,
+            "status": action.status,
+            "due_date": action.due_date,
+            "change_no": change_no,
+            "change_status": change_status,
+            "release_gate_status": (gate["ready"] if gate else True),
+            "release_gate_message": (gate["message"] if gate else ""),
         }
-        for row in rows
-    ]
+        batch_key = action.effective_batch or ""
+        if "批次" in (action.effectivity_type or "") and batch_key:
+            if batch_key not in batch_map:
+                batch_map[batch_key] = {
+                    "effective_batch": batch_key,
+                    "effectivity_type": action.effectivity_type,
+                    "effective_date": action.effective_date,
+                    "actions": [],
+                    "change_nos": set(),
+                    "pending_count": 0,
+                    "done_count": 0,
+                }
+            batch_map[batch_key]["actions"].append(row)
+            batch_map[batch_key]["change_nos"].add(change_no)
+            if action.status == "已完成":
+                batch_map[batch_key]["done_count"] += 1
+            else:
+                batch_map[batch_key]["pending_count"] += 1
+            if not batch_map[batch_key]["effective_date"] and action.effective_date:
+                batch_map[batch_key]["effective_date"] = action.effective_date
+        else:
+            no_batch_rows.append(row)
+
+    batches = []
+    for batch_key, info in batch_map.items():
+        all_done = info["pending_count"] == 0 and info["done_count"] > 0
+        batches.append({
+            "effective_batch": info["effective_batch"],
+            "effectivity_type": info["effectivity_type"],
+            "effective_date": info["effective_date"],
+            "change_nos": sorted(info["change_nos"]),
+            "action_count": len(info["actions"]),
+            "pending_count": info["pending_count"],
+            "done_count": info["done_count"],
+            "batch_status": "已生效" if all_done else "执行中" if info["done_count"] > 0 else "待执行",
+            "actions": info["actions"],
+        })
+    batches.sort(key=lambda b: b["effective_batch"])
+
+    return {
+        "product_id": product_id,
+        "product_model": product.model,
+        "batches": batches,
+        "no_batch_actions": no_batch_rows,
+    }
+
+
+@app.get("/api/boms/{bom_id}/version-history")
+def bom_version_history(bom_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    """追溯 BOM 完整版本链路：来源版本、生成变更单、ECA 动作和发布门状态。"""
+    bom = db.query(models.BomHeader).options(selectinload(models.BomHeader.product)).filter(models.BomHeader.id == bom_id).first()
+    if not bom:
+        raise HTTPException(status_code=404, detail="BOM not found")
+
+    chain: list[models.BomHeader] = []
+    current = bom
+    visited = set()
+    while current and current.id not in visited:
+        visited.add(current.id)
+        chain.append(current)
+        if current.source_bom_id:
+            current = db.query(models.BomHeader).filter(models.BomHeader.id == current.source_bom_id).first()
+        else:
+            break
+    chain.reverse()
+
+    history = []
+    for item in chain:
+        eca_action = (
+            db.query(models.ChangeAction)
+            .filter(
+                models.ChangeAction.target_type == "BOM",
+                models.ChangeAction.target_id == item.source_bom_id if item.source_bom_id else 0,
+            )
+            .first() if item.source_bom_id else None
+        )
+        change_no = ""
+        change_status = ""
+        action_no = ""
+        effectivity_type = ""
+        effective_batch = ""
+        effective_date = ""
+        release_gate = ""
+        gate_message = ""
+        if eca_action:
+            change = db.query(models.Change).filter(models.Change.id == eca_action.change_id).first()
+            change_no = change.change_no if change else ""
+            change_status = change.status if change else ""
+            action_no = eca_action.action_no
+            effectivity_type = eca_action.effectivity_type
+            effective_batch = eca_action.effective_batch
+            effective_date = eca_action.effective_date
+            if eca_action.generated_object_no:
+                gate = get_eca_generated_object_gate(db, "BOM", eca_action.generated_object_no)
+                if gate:
+                    release_gate = "可提交" if gate["ready"] else "待变更闭环"
+                    gate_message = gate["message"]
+
+        generated_no = f"{item.bom_type}-{item.product.model}-{item.version}" if item.product else ""
+        history.append({
+            "id": item.id,
+            "version": item.version,
+            "status": item.status,
+            "bom_type": item.bom_type,
+            "object_no": generated_no,
+            "owner": item.owner,
+            "release_date": item.release_date,
+            "effective_date": item.effective_date,
+            "expiry_date": item.expiry_date,
+            "effectivity_type": item.effectivity_type,
+            "effective_batch": item.effective_batch,
+            "source_bom_id": item.source_bom_id,
+            "is_current": item.id == bom.id,
+            "change_no": change_no,
+            "change_status": change_status,
+            "eca_action_no": action_no,
+            "eca_effectivity_type": effectivity_type,
+            "eca_effective_batch": effective_batch,
+            "eca_effective_date": effective_date,
+            "release_gate_status": release_gate,
+            "release_gate_message": gate_message,
+        })
+    return history
+
+
+@app.get("/api/documents/{document_id}/version-history")
+def document_version_history(document_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    """追溯文档版本链路：同一产品同标题的版本序列及关联变更。"""
+    doc = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    siblings = (
+        db.query(models.Document)
+        .filter(
+            models.Document.product_id == doc.product_id,
+            models.Document.title == doc.title,
+            models.Document.category == doc.category,
+        )
+        .order_by(models.Document.id)
+        .all()
+    )
+
+    history = []
+    for item in siblings:
+        eca_action = (
+            db.query(models.ChangeAction)
+            .filter(
+                models.ChangeAction.target_type == "文档",
+                models.ChangeAction.generated_object_no == item.doc_no,
+            )
+            .first()
+        )
+        change_no = ""
+        change_status = ""
+        action_no = ""
+        effectivity_type = ""
+        effective_batch = ""
+        effective_date = ""
+        source_version = ""
+        release_gate = ""
+        gate_message = ""
+        if eca_action:
+            change = db.query(models.Change).filter(models.Change.id == eca_action.change_id).first()
+            change_no = change.change_no if change else ""
+            change_status = change.status if change else ""
+            action_no = eca_action.action_no
+            effectivity_type = eca_action.effectivity_type
+            effective_batch = eca_action.effective_batch
+            effective_date = eca_action.effective_date
+            source_version = eca_action.target_version
+            gate = get_eca_generated_object_gate(db, "文档", item.doc_no)
+            if gate:
+                release_gate = "可提交" if gate["ready"] else "待变更闭环"
+                gate_message = gate["message"]
+
+        history.append({
+            "id": item.id,
+            "doc_no": item.doc_no,
+            "version": item.version,
+            "status": item.status,
+            "category": item.category,
+            "owner": item.owner,
+            "approval_status": item.approval_status,
+            "updated_at": item.updated_at,
+            "source_version": source_version,
+            "is_current": item.id == doc.id,
+            "change_no": change_no,
+            "change_status": change_status,
+            "eca_action_no": action_no,
+            "eca_effectivity_type": effectivity_type,
+            "eca_effective_batch": effective_batch,
+            "eca_effective_date": effective_date,
+            "release_gate_status": release_gate,
+            "release_gate_message": gate_message,
+        })
+    return history
+
+
+@app.get("/api/process-routes/{route_id}/version-history")
+def process_route_version_history(route_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    """追溯工艺路线版本链路：来源路线、生成变更单和发布门状态。"""
+    route = db.query(models.ProcessRoute).options(selectinload(models.ProcessRoute.product)).filter(models.ProcessRoute.id == route_id).first()
+    if not route:
+        raise HTTPException(status_code=404, detail="Process route not found")
+
+    chain: list[models.ProcessRoute] = []
+    current = route
+    visited = set()
+    while current and current.id not in visited:
+        visited.add(current.id)
+        chain.append(current)
+        if current.source_route_id:
+            current = db.query(models.ProcessRoute).filter(models.ProcessRoute.id == current.source_route_id).first()
+        else:
+            break
+    chain.reverse()
+
+    history = []
+    for item in chain:
+        eca_action = (
+            db.query(models.ChangeAction)
+            .filter(
+                models.ChangeAction.target_type == "工艺路线",
+                models.ChangeAction.target_id == item.source_route_id if item.source_route_id else 0,
+            )
+            .first() if item.source_route_id else None
+        )
+        change_no = ""
+        change_status = ""
+        action_no = ""
+        effectivity_type = ""
+        effective_batch = ""
+        effective_date = ""
+        release_gate = ""
+        gate_message = ""
+        if eca_action:
+            change = db.query(models.Change).filter(models.Change.id == eca_action.change_id).first()
+            change_no = change.change_no if change else ""
+            change_status = change.status if change else ""
+            action_no = eca_action.action_no
+            effectivity_type = eca_action.effectivity_type
+            effective_batch = eca_action.effective_batch
+            effective_date = eca_action.effective_date
+            if eca_action.generated_object_no:
+                gate = get_eca_generated_object_gate(db, "工艺路线", eca_action.generated_object_no)
+                if gate:
+                    release_gate = "可提交" if gate["ready"] else "待变更闭环"
+                    gate_message = gate["message"]
+
+        history.append({
+            "id": item.id,
+            "route_no": item.route_no,
+            "version": item.version,
+            "status": item.status,
+            "name": item.name,
+            "owner": item.owner,
+            "release_date": item.release_date,
+            "effective_batch": item.effective_batch,
+            "source_route_id": item.source_route_id,
+            "is_current": item.id == route.id,
+            "change_no": change_no,
+            "change_status": change_status,
+            "eca_action_no": action_no,
+            "eca_effectivity_type": effectivity_type,
+            "eca_effective_batch": effective_batch,
+            "eca_effective_date": effective_date,
+            "release_gate_status": release_gate,
+            "release_gate_message": gate_message,
+        })
+    return history
 
 
 @app.get("/api/integration-jobs")
@@ -4002,8 +5090,10 @@ def integration_jobs(
     target_system: str = "",
     object_type: str = "",
     keyword: str = "",
+    page: int = 1,
+    page_size: int = 20,
     db: Session = Depends(get_db),
-) -> list[dict]:
+) -> dict:
     query = db.query(models.IntegrationJob)
     if status:
         query = query.filter(models.IntegrationJob.status == status)
@@ -4018,8 +5108,9 @@ def integration_jobs(
             | (models.IntegrationJob.product_model.like(like_value))
             | (models.IntegrationJob.job_no.like(like_value))
         )
-    rows = query.order_by(models.IntegrationJob.id.desc()).all()
-    return [serialize_integration_job(row) for row in rows]
+    total = query.count()
+    rows = query.order_by(models.IntegrationJob.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [serialize_integration_job(row) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.get("/api/integration-jobs/summary")
@@ -4095,11 +5186,22 @@ def retry_integration_job(job_id: int, payload: IntegrationJobActionPayload, db:
 
 
 @app.get("/api/admin/foundation/system-parameters")
-def system_parameters(db: Session = Depends(get_db)) -> list[dict]:
-    return [
-        {"id": row.id, "param_key": row.param_key, "param_value": row.param_value, "param_group": row.param_group, "description": row.description}
-        for row in db.query(models.SystemParameter).order_by(models.SystemParameter.param_group, models.SystemParameter.id).all()
-    ]
+def system_parameters(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.SystemParameter)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.SystemParameter.param_key.ilike(kw) | models.SystemParameter.param_group.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.SystemParameter.param_group, models.SystemParameter.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {"id": row.id, "param_key": row.param_key, "param_value": row.param_value, "param_group": row.param_group, "description": row.description}
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/admin/foundation/system-parameters", status_code=201)
@@ -4133,23 +5235,284 @@ def delete_system_parameter(param_id: int, db: Session = Depends(get_db), _: dic
 
 
 @app.get("/api/audit-logs")
-def audit_logs(db: Session = Depends(get_db), object_type: str | None = None, action: str | None = None, limit: int = 200) -> list[dict]:
+def audit_logs(page: int = 1, page_size: int = 20, keyword: str = "", object_type: str | None = None, action: str | None = None, db: Session = Depends(get_db)) -> dict:
     query = db.query(models.OperationLog)
     if object_type:
         query = query.filter(models.OperationLog.object_type == object_type)
     if action:
         query = query.filter(models.OperationLog.action == action)
-    rows = query.order_by(models.OperationLog.id.desc()).limit(limit).all()
-    return [
-        {"id": row.id, "action": row.action, "object_type": row.object_type, "object_id": row.object_id, "object_no": row.object_no, "summary": row.summary, "operated_by": row.operated_by, "operated_at": row.operated_at}
-        for row in rows
-    ]
+    if keyword:
+        kw = f"%{keyword}%"
+        query = query.filter(models.OperationLog.object_no.ilike(kw) | models.OperationLog.summary.ilike(kw) | models.OperationLog.operated_by.ilike(kw))
+    total = query.count()
+    rows = query.order_by(models.OperationLog.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {"id": row.id, "action": row.action, "object_type": row.object_type, "object_id": row.object_id, "object_no": row.object_no, "summary": row.summary, "operated_by": row.operated_by, "operated_at": row.operated_at}
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@app.get("/api/reports/completeness")
+def report_completeness(db: Session = Depends(get_db)) -> dict:
+    """数据完整度报表：产品资料/文档/BOM/工艺齐套率"""
+    products = db.query(models.Product).all()
+    total_products = len(products)
+    product_rows = []
+    doc_ready = 0
+    bom_ready = 0
+    route_ready = 0
+    req_ready = 0
+    for p in products:
+        has_doc = db.query(models.Document).filter(models.Document.product_id == p.id).count() > 0
+        has_bom = db.query(models.BomHeader).filter(models.BomHeader.product_id == p.id).count() > 0
+        has_route = db.query(models.ProcessRoute).filter(models.ProcessRoute.product_id == p.id).count() > 0
+        has_req = db.query(models.Requirement).filter(models.Requirement.product_id == p.id).count() > 0
+        if has_doc:
+            doc_ready += 1
+        if has_bom:
+            bom_ready += 1
+        if has_route:
+            route_ready += 1
+        if has_req:
+            req_ready += 1
+        # 单产品完整度：四项全有视为齐套
+        completeness = sum([has_doc, has_bom, has_route, has_req])
+        product_rows.append({
+            "id": p.id,
+            "model": p.model,
+            "name": p.name,
+            "lifecycle": p.lifecycle,
+            "owner": p.owner,
+            "has_doc": has_doc,
+            "has_bom": has_bom,
+            "has_route": has_route,
+            "has_req": has_req,
+            "completeness": round(completeness * 25),  # 0/25/50/75/100
+        })
+
+    # 文档签核率
+    doc_total = db.query(models.Document).count()
+    doc_signed = db.query(models.Document).filter(models.Document.approval_status == "已签核").count()
+    # BOM 已发布率
+    bom_total = db.query(models.BomHeader).count()
+    bom_released = db.query(models.BomHeader).filter(models.BomHeader.status == "已发布").count()
+    # 工艺已发布率
+    route_total = db.query(models.ProcessRoute).count()
+    route_released = db.query(models.ProcessRoute).filter(models.ProcessRoute.status == "已发布").count()
+
+    return {
+        "summary": {
+            "product_total": total_products,
+            "doc_coverage": round((doc_ready / total_products) * 100) if total_products else 0,
+            "bom_coverage": round((bom_ready / total_products) * 100) if total_products else 0,
+            "route_coverage": round((route_ready / total_products) * 100) if total_products else 0,
+            "req_coverage": round((req_ready / total_products) * 100) if total_products else 0,
+            "doc_signed_rate": round((doc_signed / doc_total) * 100) if doc_total else 0,
+            "bom_released_rate": round((bom_released / bom_total) * 100) if bom_total else 0,
+            "route_released_rate": round((route_released / route_total) * 100) if route_total else 0,
+            "full_ready_count": sum(1 for r in product_rows if r["completeness"] == 100),
+        },
+        "products": product_rows,
+    }
+
+
+@app.get("/api/reports/change-cycle")
+def report_change_cycle(db: Session = Depends(get_db)) -> dict:
+    """变更周期报表：ECR/ECO/ECN 状态分布、ECA 关闭率"""
+    change_status_rows = db.query(models.Change.status, func.count(models.Change.id)).group_by(models.Change.status).all()
+    change_type_rows = db.query(models.Change.change_type, func.count(models.Change.id)).group_by(models.Change.change_type).all()
+    change_priority_rows = db.query(models.Change.priority, func.count(models.Change.id)).group_by(models.Change.priority).all()
+
+    # ECA 关闭率
+    eca_total = db.query(models.ChangeAction).count()
+    eca_closed = db.query(models.ChangeAction).filter(models.ChangeAction.status == "已完成").count()
+    eca_pending = db.query(models.ChangeAction).filter(models.ChangeAction.status != "已完成").count()
+
+    # 按变更单聚合 ECA 完成情况
+    changes = db.query(models.Change).order_by(models.Change.id.desc()).limit(20).all()
+    change_rows = []
+    for c in changes:
+        actions = db.query(models.ChangeAction).filter(models.ChangeAction.change_id == c.id).all()
+        total = len(actions)
+        closed = sum(1 for a in actions if a.status == "已完成")
+        change_rows.append({
+            "id": c.id,
+            "change_no": c.change_no,
+            "title": c.title,
+            "change_type": c.change_type,
+            "status": c.status,
+            "priority": c.priority,
+            "owner": c.owner,
+            "submitted_at": c.submitted_at,
+            "eca_total": total,
+            "eca_closed": closed,
+            "eca_close_rate": round((closed / total) * 100) if total else 0,
+        })
+
+    return {
+        "summary": {
+            "change_total": db.query(models.Change).count(),
+            "eca_total": eca_total,
+            "eca_closed": eca_closed,
+            "eca_pending": eca_pending,
+            "eca_close_rate": round((eca_closed / eca_total) * 100) if eca_total else 0,
+        },
+        "by_status": [{"name": name, "value": value} for name, value in change_status_rows],
+        "by_type": [{"name": name, "value": value} for name, value in change_type_rows],
+        "by_priority": [{"name": name, "value": value} for name, value in change_priority_rows],
+        "recent_changes": change_rows,
+    }
+
+
+@app.get("/api/reports/project-progress")
+def report_project_progress(db: Session = Depends(get_db)) -> dict:
+    """项目进度报表：阶段门分布、逾期任务、风险分布"""
+    project_phase_rows = db.query(models.Project.phase, func.count(models.Project.id)).group_by(models.Project.phase).all()
+    project_risk_rows = db.query(models.Project.risk_level, func.count(models.Project.id)).group_by(models.Project.risk_level).all()
+
+    projects = db.query(models.Project).order_by(models.Project.id.desc()).all()
+    # 逾期任务：due_date 非空且小于今天且未完成
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    overdue_tasks = (
+        db.query(models.ProjectTask)
+        .filter(models.ProjectTask.due_date != "", models.ProjectTask.due_date < today_str, models.ProjectTask.status != "已完成")
+        .order_by(models.ProjectTask.due_date)
+        .all()
+    )
+    overdue_rows = []
+    for t in overdue_tasks:
+        proj = db.query(models.Project).filter(models.Project.id == t.project_id).first()
+        overdue_rows.append({
+            "id": t.id,
+            "name": t.name,
+            "phase": t.phase,
+            "owner": t.owner,
+            "due_date": t.due_date,
+            "status": t.status,
+            "project_no": proj.project_no if proj else "",
+            "project_name": proj.name if proj else "",
+        })
+
+    # 项目维度汇总
+    project_rows = []
+    for p in projects:
+        tasks = db.query(models.ProjectTask).filter(models.ProjectTask.project_id == p.id).all()
+        task_total = len(tasks)
+        task_done = sum(1 for t in tasks if t.status == "已完成")
+        risks = db.query(models.ProjectRisk).filter(models.ProjectRisk.project_id == p.id).all()
+        open_risks = sum(1 for r in risks if r.status != "已关闭")
+        project_rows.append({
+            "id": p.id,
+            "project_no": p.project_no,
+            "name": p.name,
+            "phase": p.phase,
+            "progress": p.progress,
+            "owner": p.owner,
+            "risk_level": p.risk_level,
+            "task_total": task_total,
+            "task_done": task_done,
+            "task_done_rate": round((task_done / task_total) * 100) if task_total else 0,
+            "open_risks": open_risks,
+            "end_date": p.end_date,
+        })
+
+    # 风险类型分布
+    risk_type_rows = db.query(models.ProjectRisk.risk_type, func.count(models.ProjectRisk.id)).group_by(models.ProjectRisk.risk_type).all()
+
+    return {
+        "summary": {
+            "project_total": len(projects),
+            "overdue_task_count": len(overdue_rows),
+            "avg_progress": round(sum(p.progress for p in projects) / len(projects)) if projects else 0,
+            "open_risk_count": db.query(models.ProjectRisk).filter(models.ProjectRisk.status != "已关闭").count(),
+        },
+        "by_phase": [{"name": name, "value": value} for name, value in project_phase_rows],
+        "by_risk": [{"name": name, "value": value} for name, value in project_risk_rows],
+        "by_risk_type": [{"name": name, "value": value} for name, value in risk_type_rows],
+        "overdue_tasks": overdue_rows,
+        "projects": project_rows,
+    }
+
+
+@app.get("/api/reports/quality-closure")
+def report_quality_closure(db: Session = Depends(get_db)) -> dict:
+    """质量闭环报表：CAPA 关闭率、问题严重度分布、状态趋势"""
+    issue_total = db.query(models.QualityIssue).count()
+    issue_closed = db.query(models.QualityIssue).filter(models.QualityIssue.status == "已关闭").count()
+    issue_open = issue_total - issue_closed
+
+    issue_severity_rows = db.query(models.QualityIssue.severity, func.count(models.QualityIssue.id)).group_by(models.QualityIssue.severity).all()
+    issue_status_rows = db.query(models.QualityIssue.status, func.count(models.QualityIssue.id)).group_by(models.QualityIssue.status).all()
+
+    capa_total = db.query(models.QualityCAPA).count()
+    capa_closed = db.query(models.QualityCAPA).filter(models.QualityCAPA.status == "已关闭").count()
+    capa_open = capa_total - capa_closed
+
+    capa_source_rows = db.query(models.QualityCAPA.source, func.count(models.QualityCAPA.id)).group_by(models.QualityCAPA.source).all()
+
+    # 质量问题清单
+    issues = db.query(models.QualityIssue).order_by(models.QualityIssue.id.desc()).limit(20).all()
+    issue_rows = []
+    for i in issues:
+        capas = db.query(models.QualityCAPA).filter(models.QualityCAPA.issue_id == i.id).all()
+        issue_rows.append({
+            "id": i.id,
+            "issue_no": i.issue_no,
+            "title": i.title,
+            "product_model": i.product_model,
+            "lot_no": i.lot_no,
+            "severity": i.severity,
+            "status": i.status,
+            "owner": i.owner,
+            "capa_count": len(capas),
+            "capa_closed": sum(1 for c in capas if c.status == "已关闭"),
+        })
+
+    # 测试良率趋势（来自 QualityLot）
+    quality_trend_rows = (
+        db.query(models.QualityLot.tested_at, func.avg(models.QualityLot.cp_yield), func.avg(models.QualityLot.ft_yield))
+        .group_by(models.QualityLot.tested_at)
+        .order_by(models.QualityLot.tested_at)
+        .limit(15)
+        .all()
+    )
+
+    return {
+        "summary": {
+            "issue_total": issue_total,
+            "issue_open": issue_open,
+            "issue_close_rate": round((issue_closed / issue_total) * 100) if issue_total else 0,
+            "capa_total": capa_total,
+            "capa_open": capa_open,
+            "capa_close_rate": round((capa_closed / capa_total) * 100) if capa_total else 0,
+        },
+        "issue_by_severity": [{"name": name, "value": value} for name, value in issue_severity_rows],
+        "issue_by_status": [{"name": name, "value": value} for name, value in issue_status_rows],
+        "capa_by_source": [{"name": name, "value": value} for name, value in capa_source_rows],
+        "quality_trend": [{"date": d, "cp": round(cp, 1), "ft": round(ft, 1)} for d, cp, ft in quality_trend_rows],
+        "issues": issue_rows,
+    }
 
 
 @app.get("/api/substitute-materials")
-def substitute_materials(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.SubstituteMaterial).order_by(models.SubstituteMaterial.material_code).all()
-    return [{"id": r.id, "material_code": r.material_code, "material_name": r.material_name, "substitute_code": r.substitute_code, "substitute_name": r.substitute_name, "substitute_type": r.substitute_type, "strategy": r.strategy, "risk_level": r.risk_level, "status": r.status, "effective_date": r.effective_date, "expiry_date": r.expiry_date, "description": r.description} for r in rows]
+def substitute_materials(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.SubstituteMaterial)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(
+            models.SubstituteMaterial.material_code.ilike(kw)
+            | models.SubstituteMaterial.material_name.ilike(kw)
+            | models.SubstituteMaterial.substitute_code.ilike(kw)
+            | models.SubstituteMaterial.substitute_name.ilike(kw)
+        )
+    total = q.count()
+    rows = q.order_by(models.SubstituteMaterial.material_code).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [{"id": r.id, "material_code": r.material_code, "material_name": r.material_name, "substitute_code": r.substitute_code, "substitute_name": r.substitute_name, "substitute_type": r.substitute_type, "strategy": r.strategy, "risk_level": r.risk_level, "status": r.status, "effective_date": r.effective_date, "expiry_date": r.expiry_date, "description": r.description} for r in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/substitute-materials", status_code=201)
@@ -4182,9 +5545,14 @@ def delete_substitute_material(row_id: int, db: Session = Depends(get_db), _: di
 
 
 @app.get("/api/suppliers")
-def suppliers(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.Supplier).order_by(models.Supplier.code).all()
-    return [{"id": r.id, "code": r.code, "name": r.name, "supplier_type": r.supplier_type, "contact": r.contact, "phone": r.phone, "email": r.email, "address": r.address, "certification": r.certification, "risk_level": r.risk_level, "status": r.status, "description": r.description} for r in rows]
+def suppliers(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.Supplier)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.Supplier.code.ilike(kw) | models.Supplier.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.Supplier.code).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [{"id": r.id, "code": r.code, "name": r.name, "supplier_type": r.supplier_type, "contact": r.contact, "phone": r.phone, "email": r.email, "address": r.address, "certification": r.certification, "risk_level": r.risk_level, "status": r.status, "description": r.description} for r in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/suppliers", status_code=201)
@@ -4217,26 +5585,36 @@ def delete_supplier(supplier_id: int, db: Session = Depends(get_db), _: dict = D
 
 
 @app.get("/api/projects")
-def projects(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.Project).options(selectinload(models.Project.tasks), selectinload(models.Project.deliverables), selectinload(models.Project.risks)).order_by(models.Project.id).all()
-    return [
-        {
-            "id": row.id,
-            "project_no": row.project_no,
-            "name": row.name,
-            "product_model": row.product_model,
-            "phase": row.phase,
-            "progress": row.progress,
-            "owner": row.owner,
-            "start_date": row.start_date,
-            "end_date": row.end_date,
-            "risk_level": row.risk_level,
-            "tasks": [{"name": task.name, "phase": task.phase, "owner": task.owner, "status": task.status, "due_date": task.due_date} for task in row.tasks],
-            "deliverables": [{"id": d.id, "name": d.name, "deliverable_type": d.deliverable_type, "phase": d.phase, "owner": d.owner, "status": d.status, "due_date": d.due_date, "completed_at": d.completed_at, "description": d.description} for d in row.deliverables],
-            "risks": [{"id": r.id, "risk_type": r.risk_type, "description": r.description, "impact": r.impact, "probability": r.probability, "severity": r.severity, "owner": r.owner, "status": r.status, "mitigation": r.mitigation} for r in row.risks],
-        }
-        for row in rows
-    ]
+def projects(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.Project).options(selectinload(models.Project.tasks), selectinload(models.Project.deliverables), selectinload(models.Project.risks))
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.Project.project_no.ilike(kw) | models.Project.name.ilike(kw) | models.Project.product_model.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.Project.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {
+                "id": row.id,
+                "project_no": row.project_no,
+                "name": row.name,
+                "product_model": row.product_model,
+                "phase": row.phase,
+                "progress": row.progress,
+                "owner": row.owner,
+                "start_date": row.start_date,
+                "end_date": row.end_date,
+                "risk_level": row.risk_level,
+                "tasks": [{"id": task.id, "name": task.name, "phase": task.phase, "owner": task.owner, "status": task.status, "due_date": task.due_date} for task in row.tasks],
+                "deliverables": [{"id": d.id, "name": d.name, "deliverable_type": d.deliverable_type, "phase": d.phase, "owner": d.owner, "status": d.status, "due_date": d.due_date, "completed_at": d.completed_at, "description": d.description, "object_type": d.object_type, "object_id": d.object_id} for d in row.deliverables],
+                "risks": [{"id": r.id, "risk_type": r.risk_type, "description": r.description, "impact": r.impact, "probability": r.probability, "severity": r.severity, "owner": r.owner, "status": r.status, "mitigation": r.mitigation} for r in row.risks],
+            }
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/projects", status_code=201)
@@ -4269,9 +5647,14 @@ def delete_project(project_id: int, db: Session = Depends(get_db), _: dict = Dep
 
 
 @app.get("/api/project-templates")
-def project_templates(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.ProjectTemplate).order_by(models.ProjectTemplate.code).all()
-    return [{"id": r.id, "code": r.code, "name": r.name, "description": r.description, "stages": r.stages, "status": r.status} for r in rows]
+def project_templates(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.ProjectTemplate)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.ProjectTemplate.code.ilike(kw) | models.ProjectTemplate.name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.ProjectTemplate.code).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [{"id": r.id, "code": r.code, "name": r.name, "description": r.description, "stages": r.stages, "status": r.status} for r in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/project-templates", status_code=201)
@@ -4307,7 +5690,7 @@ def delete_project_template(template_id: int, db: Session = Depends(get_db), _: 
 def project_deliverables(project_id: int, db: Session = Depends(get_db)) -> list[dict]:
     ensure_project_exists(db, project_id)
     rows = db.query(models.ProjectDeliverable).filter(models.ProjectDeliverable.project_id == project_id).order_by(models.ProjectDeliverable.id).all()
-    return [{"id": r.id, "name": r.name, "deliverable_type": r.deliverable_type, "phase": r.phase, "owner": r.owner, "status": r.status, "due_date": r.due_date, "completed_at": r.completed_at, "description": r.description} for r in rows]
+    return [{"id": r.id, "name": r.name, "deliverable_type": r.deliverable_type, "phase": r.phase, "owner": r.owner, "status": r.status, "due_date": r.due_date, "completed_at": r.completed_at, "description": r.description, "object_type": r.object_type, "object_id": r.object_id} for r in rows]
 
 
 @app.post("/api/projects/{project_id}/deliverables", status_code=201)
@@ -4377,10 +5760,97 @@ def delete_project_risk(risk_id: int, db: Session = Depends(get_db), _: dict = D
     return {"ok": True}
 
 
+PROJECT_PHASES = ["概念", "设计", "流片", "验证", "试产", "量产导入"]
+
+
+@app.get("/api/projects/{project_id}/tasks")
+def project_tasks(project_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    ensure_project_exists(db, project_id)
+    rows = db.query(models.ProjectTask).filter(models.ProjectTask.project_id == project_id).order_by(models.ProjectTask.id).all()
+    return [{"id": r.id, "name": r.name, "phase": r.phase, "owner": r.owner, "status": r.status, "due_date": r.due_date} for r in rows]
+
+
+@app.post("/api/projects/{project_id}/tasks", status_code=201)
+def create_project_task(project_id: int, payload: ProjectTaskPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("project"))) -> dict:
+    ensure_project_exists(db, project_id)
+    row = models.ProjectTask(project_id=project_id, **payload.model_dump())
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"id": row.id}
+
+
+@app.put("/api/project-tasks/{task_id}")
+def update_project_task(task_id: int, payload: ProjectTaskUpdatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("project"))) -> dict:
+    row = db.query(models.ProjectTask).filter(models.ProjectTask.id == task_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Task not found")
+    update_model(row, payload)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/project-tasks/{task_id}")
+def delete_project_task(task_id: int, db: Session = Depends(get_db), _: dict = Depends(require_permission("project"))) -> dict:
+    row = db.query(models.ProjectTask).filter(models.ProjectTask.id == task_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Task not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/projects/{project_id}/advance-phase")
+def advance_project_phase(project_id: int, payload: ProjectPhaseGatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("project"))) -> dict:
+    """推进项目阶段门：校验当前阶段交付物全部完成，推进到下一阶段并更新进度。"""
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.phase == "量产导入":
+        raise HTTPException(status_code=409, detail="Project already at final phase")
+
+    current_phase = project.phase
+    deliverables = (
+        db.query(models.ProjectDeliverable)
+        .filter(models.ProjectDeliverable.project_id == project_id, models.ProjectDeliverable.phase == current_phase)
+        .all()
+    )
+    pending = [d for d in deliverables if d.status not in {"已完成", "已关闭"}]
+    if pending:
+        names = "、".join(d.name for d in pending[:3])
+        raise HTTPException(status_code=409, detail=f"当前阶段有 {len(pending)} 个交付物未完成：{names}")
+
+    try:
+        idx = PROJECT_PHASES.index(current_phase)
+    except ValueError:
+        idx = 0
+    next_phase = PROJECT_PHASES[min(idx + 1, len(PROJECT_PHASES) - 1)]
+    old_phase = project.phase
+    project.phase = next_phase
+    project.progress = min(100, int((idx + 1) / len(PROJECT_PHASES) * 100))
+    db.commit()
+    db.refresh(project)
+    return {
+        "ok": True,
+        "old_phase": old_phase,
+        "new_phase": next_phase,
+        "progress": project.progress,
+        "message": f"阶段门从「{old_phase}」推进到「{next_phase}」",
+    }
+
+
 @app.get("/api/quality")
-def quality(db: Session = Depends(get_db)) -> dict:
-    lots = db.query(models.QualityLot).options(selectinload(models.QualityLot.product)).order_by(models.QualityLot.id).all()
-    issues = db.query(models.QualityIssue).order_by(models.QualityIssue.id).all()
+def quality(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    lots_q = db.query(models.QualityLot).options(selectinload(models.QualityLot.product))
+    issues_q = db.query(models.QualityIssue)
+    if keyword:
+        kw = f"%{keyword}%"
+        lots_q = lots_q.filter(models.QualityLot.lot_no.ilike(kw) | models.QualityLot.wafer_id.ilike(kw))
+        issues_q = issues_q.filter(models.QualityIssue.issue_no.ilike(kw) | models.QualityIssue.title.ilike(kw))
+    lots_total = lots_q.count()
+    issues_total = issues_q.count()
+    lots = lots_q.order_by(models.QualityLot.id).offset((page - 1) * page_size).limit(page_size).all()
+    issues = issues_q.order_by(models.QualityIssue.id).offset((page - 1) * page_size).limit(page_size).all()
     return {
         "lots": [
             {
@@ -4398,6 +5868,7 @@ def quality(db: Session = Depends(get_db)) -> dict:
             }
             for lot in lots
         ],
+        "lots_total": lots_total,
         "issues": [
             {
                 "id": issue.id,
@@ -4413,16 +5884,29 @@ def quality(db: Session = Depends(get_db)) -> dict:
             }
             for issue in issues
         ],
+        "issues_total": issues_total,
+        "page": page,
+        "page_size": page_size,
     }
 
 
 @app.get("/api/quality/capas")
-def quality_capas(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.QualityCAPA).order_by(models.QualityCAPA.id.desc()).all()
-    return [
-        {"id": r.id, "capa_no": r.capa_no, "issue_id": r.issue_id, "title": r.title, "source": r.source, "root_cause": r.root_cause, "corrective_action": r.corrective_action, "preventive_action": r.preventive_action, "owner": r.owner, "status": r.status, "due_date": r.due_date, "closed_at": r.closed_at, "result": r.result}
-        for r in rows
-    ]
+def quality_capas(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.QualityCAPA)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.QualityCAPA.capa_no.ilike(kw) | models.QualityCAPA.title.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.QualityCAPA.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {"id": r.id, "capa_no": r.capa_no, "issue_id": r.issue_id, "title": r.title, "source": r.source, "root_cause": r.root_cause, "corrective_action": r.corrective_action, "preventive_action": r.preventive_action, "owner": r.owner, "status": r.status, "due_date": r.due_date, "closed_at": r.closed_at, "result": r.result}
+            for r in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/quality/capas", status_code=201)
@@ -4480,29 +5964,255 @@ def create_capa_from_issue(issue_id: int, db: Session = Depends(get_db), _: dict
     return {"id": capa.id, "capa_no": capa.capa_no}
 
 
+@app.post("/api/quality/issues", status_code=201)
+def create_quality_issue(payload: QualityIssuePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("quality"))) -> dict:
+    if not payload.issue_no:
+        count = db.query(models.QualityIssue).count() + 1
+        payload.issue_no = f"QI-{count:04d}"
+    row = models.QualityIssue(**payload.model_dump())
+    db.add(row)
+    commit_or_409(db, "Issue number already exists")
+    db.refresh(row)
+    return {"id": row.id, "issue_no": row.issue_no}
+
+
+@app.put("/api/quality/issues/{issue_id}")
+def update_quality_issue(issue_id: int, payload: QualityIssueUpdatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("quality"))) -> dict:
+    row = db.query(models.QualityIssue).filter(models.QualityIssue.id == issue_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Quality issue not found")
+    update_model(row, payload)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/quality/issues/{issue_id}")
+def delete_quality_issue(issue_id: int, db: Session = Depends(get_db), _: dict = Depends(require_permission("quality"))) -> dict:
+    row = db.query(models.QualityIssue).filter(models.QualityIssue.id == issue_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Quality issue not found")
+    if row.status in {"CAPA 执行中", "已关闭"}:
+        raise HTTPException(status_code=409, detail="Cannot delete issue with CAPA in progress or closed")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/quality/issues/{issue_id}/close")
+def close_quality_issue(issue_id: int, payload: WorkflowTaskActionPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("quality"))) -> dict:
+    issue = db.query(models.QualityIssue).filter(models.QualityIssue.id == issue_id).first()
+    if not issue:
+        raise HTTPException(status_code=404, detail="Quality issue not found")
+    if issue.status == "已关闭":
+        raise HTTPException(status_code=409, detail="Issue already closed")
+    issue.status = "已关闭"
+    issue.corrective_action = f"{issue.corrective_action}\n[关闭人：{payload.acted_by}，日期：{today_text()}，备注：{payload.comment}]".strip()
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/quality/issues/{issue_id}/trigger-ecr", status_code=201)
+def trigger_ecr_from_issue(issue_id: int, db: Session = Depends(get_db), _: dict = Depends(require_permission("quality"))) -> dict:
+    """质量问题触发 ECR：自动创建关联产品的变更单草稿。"""
+    issue = db.query(models.QualityIssue).filter(models.QualityIssue.id == issue_id).first()
+    if not issue:
+        raise HTTPException(status_code=404, detail="Quality issue not found")
+    if issue.status == "已关闭":
+        raise HTTPException(status_code=409, detail="Cannot trigger ECR from closed issue")
+
+    product = (
+        db.query(models.Product)
+        .filter(models.Product.model == issue.product_model)
+        .first()
+        if issue.product_model else None
+    )
+    if not product:
+        raise HTTPException(status_code=409, detail=f"Product model '{issue.product_model}' not found, cannot trigger ECR")
+
+    existing = (
+        db.query(models.Change)
+        .filter(models.Change.title.like(f"%{issue.issue_no}%"))
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail=f"ECR already exists for {issue.issue_no}: {existing.change_no}")
+
+    count = db.query(models.Change).count() + 1
+    change_no = f"ECR-{product.model}-QI{count:03d}"
+    change = models.Change(
+        product_id=product.id,
+        change_no=change_no,
+        title=f"质量问题 {issue.issue_no} 触发变更：{issue.title}",
+        change_type="ECR",
+        reason=f"质量问题 {issue.issue_no} 触发。\n问题描述：{issue.title}\n根因：{issue.root_cause}\n纠正措施：{issue.corrective_action}",
+        status="草稿",
+        priority="高" if issue.severity == "高" else "中",
+        owner=issue.owner or product.owner,
+        submitted_at="",
+        before_desc=f"Lot {issue.lot_no} 出现质量问题：{issue.title}",
+        after_desc="待影响分析后确定",
+    )
+    db.add(change)
+    issue.status = "已触发 ECR"
+    db.commit()
+    db.refresh(change)
+    return {"id": change.id, "change_no": change.change_no, "product_id": product.id}
+
+
+@app.post("/api/quality/capas/{capa_id}/close")
+def close_quality_capa(capa_id: int, payload: WorkflowTaskActionPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("quality"))) -> dict:
+    """关闭 CAPA 并联动关闭关联的质量问题。"""
+    capa = db.query(models.QualityCAPA).filter(models.QualityCAPA.id == capa_id).first()
+    if not capa:
+        raise HTTPException(status_code=404, detail="CAPA not found")
+    if capa.status == "已关闭":
+        raise HTTPException(status_code=409, detail="CAPA already closed")
+    capa.status = "已关闭"
+    capa.closed_at = today_text()
+    capa.result = f"{capa.result}\n[关闭人：{payload.acted_by}，日期：{capa.closed_at}，备注：{payload.comment}]".strip()
+
+    issue_closed = False
+    if capa.issue_id:
+        issue = db.query(models.QualityIssue).filter(models.QualityIssue.id == capa.issue_id).first()
+        if issue and issue.status != "已关闭":
+            issue.status = "已关闭"
+            issue_closed = True
+    db.commit()
+    return {"ok": True, "issue_closed": issue_closed}
+
+
+@app.get("/api/quality/reports")
+def quality_reports(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.QualityReport)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.QualityReport.report_no.ilike(kw) | models.QualityReport.title.ilike(kw) | models.QualityReport.product_model.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.QualityReport.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {"id": r.id, "report_no": r.report_no, "title": r.title, "report_type": r.report_type, "product_model": r.product_model, "issue_nos": r.issue_nos, "capa_nos": r.capa_nos, "summary": r.summary, "root_cause": r.root_cause, "corrective_action": r.corrective_action, "preventive_action": r.preventive_action, "owner": r.owner, "status": r.status, "archived_at": r.archived_at, "archived_by": r.archived_by}
+            for r in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@app.post("/api/quality/reports", status_code=201)
+def create_quality_report(payload: QualityReportPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("quality"))) -> dict:
+    if not payload.report_no:
+        count = db.query(models.QualityReport).count() + 1
+        payload.report_no = f"QR-{count:04d}"
+    row = models.QualityReport(**payload.model_dump(), archived_at=today_text())
+    db.add(row)
+    commit_or_409(db, "Report number already exists")
+    db.refresh(row)
+    return {"id": row.id, "report_no": row.report_no}
+
+
+@app.post("/api/quality/reports/archive-from-issues", status_code=201)
+def archive_quality_report_from_issues(payload: QualityReportArchiveFromIssuePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("quality"))) -> dict:
+    """从已关闭的质量问题+CAPA 批量生成质量归档报告。"""
+    if not payload.issue_ids:
+        raise HTTPException(status_code=409, detail="No issues selected")
+    issues = db.query(models.QualityIssue).filter(models.QualityIssue.id.in_(payload.issue_ids)).all()
+    if not issues:
+        raise HTTPException(status_code=404, detail="Issues not found")
+    not_closed = [i for i in issues if i.status != "已关闭"]
+    if not_closed:
+        raise HTTPException(status_code=409, detail=f"Cannot archive: issues {[i.issue_no for i in not_closed]} are not closed")
+
+    issue_ids = [i.id for i in issues]
+    capas = db.query(models.QualityCAPA).filter(models.QualityCAPA.issue_id.in_(issue_ids)).all()
+    issue_nos = "、".join(i.issue_no for i in issues)
+    capa_nos = "、".join(c.capa_no for c in capas)
+    product_models = list({i.product_model for i in issues if i.product_model})
+    product_model = "、".join(product_models)
+    root_causes = "\n".join(f"[{i.issue_no}] {i.root_cause}" for i in issues if i.root_cause)
+    corrective = "\n".join(f"[{i.issue_no}] {i.corrective_action}" for i in issues if i.corrective_action)
+    preventive = "\n".join(f"[{c.capa_no}] {c.preventive_action}" for c in capas if c.preventive_action)
+    summary = f"本报告归档 {len(issues)} 个质量问题、{len(capas)} 个 CAPA。"
+
+    count = db.query(models.QualityReport).count() + 1
+    report_no = f"QR-{count:04d}"
+    title = payload.title or f"质量归档报告 {report_no}"
+    report = models.QualityReport(
+        report_no=report_no,
+        title=title,
+        report_type="质量问题归档",
+        product_model=product_model,
+        issue_nos=issue_nos,
+        capa_nos=capa_nos,
+        summary=summary,
+        root_cause=root_causes,
+        corrective_action=corrective,
+        preventive_action=preventive,
+        owner=payload.owner or (issues[0].owner if issues else ""),
+        status="已归档",
+        archived_at=today_text(),
+        archived_by=payload.owner or "系统",
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    return {"id": report.id, "report_no": report.report_no}
+
+
+@app.put("/api/quality/reports/{report_id}")
+def update_quality_report(report_id: int, payload: QualityReportUpdatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("quality"))) -> dict:
+    row = db.query(models.QualityReport).filter(models.QualityReport.id == report_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+    update_model(row, payload)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/quality/reports/{report_id}")
+def delete_quality_report(report_id: int, db: Session = Depends(get_db), _: dict = Depends(require_permission("quality"))) -> dict:
+    row = db.query(models.QualityReport).filter(models.QualityReport.id == report_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
 @app.get("/api/problem-reports")
-def problem_reports(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.ProblemReport).order_by(models.ProblemReport.id.desc()).all()
-    return [
-        {
-            "id": r.id,
-            "pr_no": r.pr_no,
-            "title": r.title,
-            "problem_type": r.problem_type,
-            "severity": r.severity,
-            "source": r.source,
-            "product_id": r.product_id,
-            "product_model": r.product_model,
-            "description": r.description,
-            "suggested_action": r.suggested_action,
-            "status": r.status,
-            "reporter": r.reporter,
-            "reported_at": r.reported_at,
-            "related_change_no": r.related_change_no,
-            "remark": r.remark,
-        }
-        for r in rows
-    ]
+def problem_reports(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.ProblemReport)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.ProblemReport.pr_no.ilike(kw) | models.ProblemReport.title.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.ProblemReport.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "pr_no": r.pr_no,
+                "title": r.title,
+                "problem_type": r.problem_type,
+                "severity": r.severity,
+                "source": r.source,
+                "product_id": r.product_id,
+                "product_model": r.product_model,
+                "description": r.description,
+                "suggested_action": r.suggested_action,
+                "status": r.status,
+                "reporter": r.reporter,
+                "reported_at": r.reported_at,
+                "related_change_no": r.related_change_no,
+                "remark": r.remark,
+            }
+            for r in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/problem-reports", status_code=201)
@@ -4537,24 +6247,34 @@ def delete_problem_report(report_id: int, db: Session = Depends(get_db), _: dict
 
 
 @app.get("/api/process-parameters")
-def process_parameters(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(models.ProcessParameter).order_by(models.ProcessParameter.id.asc()).all()
-    return [
-        {
-            "id": r.id,
-            "param_code": r.param_code,
-            "param_name": r.param_name,
-            "param_type": r.param_type,
-            "unit": r.unit,
-            "category": r.category,
-            "default_value": r.default_value,
-            "min_value": r.min_value,
-            "max_value": r.max_value,
-            "description": r.description,
-            "status": r.status,
-        }
-        for r in rows
-    ]
+def process_parameters(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.ProcessParameter)
+    if keyword:
+        kw = f"%{keyword}%"
+        q = q.filter(models.ProcessParameter.param_code.ilike(kw) | models.ProcessParameter.param_name.ilike(kw))
+    total = q.count()
+    rows = q.order_by(models.ProcessParameter.id.asc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "param_code": r.param_code,
+                "param_name": r.param_name,
+                "param_type": r.param_type,
+                "unit": r.unit,
+                "category": r.category,
+                "default_value": r.default_value,
+                "min_value": r.min_value,
+                "max_value": r.max_value,
+                "description": r.description,
+                "status": r.status,
+            }
+            for r in rows
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/process-parameters", status_code=201)

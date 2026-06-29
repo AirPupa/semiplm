@@ -50,6 +50,36 @@
           <el-table-column prop="status" label="状态" width="120" />
         </el-table>
       </el-tab-pane>
+      <el-tab-pane label="工艺路线">
+        <el-table :data="product.routes || []" size="small">
+          <el-table-column prop="route_no" label="路线编号" width="160" />
+          <el-table-column prop="name" label="名称" />
+          <el-table-column prop="version" label="版本" width="90" />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column prop="steps" label="工序数" width="90" />
+        </el-table>
+      </el-tab-pane>
+      <el-tab-pane label="需求规格">
+        <el-table :data="product.requirements || []" size="small">
+          <el-table-column prop="req_no" label="需求编号" width="160" />
+          <el-table-column prop="title" label="标题" />
+          <el-table-column prop="source" label="来源" width="120" />
+          <el-table-column prop="category" label="分类" width="120" />
+          <el-table-column prop="priority" label="优先级" width="100" />
+          <el-table-column prop="status" label="状态" width="100" />
+          <el-table-column prop="owner" label="负责人" width="120" />
+        </el-table>
+      </el-tab-pane>
+      <el-tab-pane label="关联项目">
+        <el-table :data="product.projects || []" size="small">
+          <el-table-column prop="project_no" label="项目编号" width="160" />
+          <el-table-column prop="name" label="项目名称" />
+          <el-table-column prop="phase" label="阶段" width="120" />
+          <el-table-column prop="progress" label="进度" width="90" />
+          <el-table-column prop="owner" label="负责人" width="120" />
+          <el-table-column prop="risk_level" label="风险" width="100" />
+        </el-table>
+      </el-tab-pane>
       <el-tab-pane label="质量摘要">
         <el-table :data="product.quality || []" size="small">
           <el-table-column prop="lot_no" label="Lot" />

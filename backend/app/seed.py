@@ -85,6 +85,28 @@ def seed_database(db: Session) -> None:
         models.User(username="zhanghao", display_name="张昊", role="工艺工程师", department="生产部"),
         models.User(username="fanglei", display_name="房磊", role="项目经理", department="生产部"),
         models.User(username="liangweiwei", display_name="梁维维", role="IT工程师", department="生产部"),
+        # ↓ 以下为分页布局验证用测试用户，不得作为主数据参与业务数据构造
+        models.User(username="chenjiahao", display_name="陈嘉豪", role="研发工程师", department="生产部"),
+        models.User(username="wangxinyi", display_name="王欣怡", role="研发工程师", department="生产部"),
+        models.User(username="liuzhenguo", display_name="刘振国", role="工艺工程师", department="生产部"),
+        models.User(username="huangmeiling", display_name="黄美玲", role="质量工程师", department="生产部"),
+        models.User(username="zhoukai", display_name="周凯", role="研发工程师", department="生产部"),
+        models.User(username="xujingwen", display_name="徐靖雯", role="质量工程师", department="生产部"),
+        models.User(username="sunhaoran", display_name="孙浩然", role="工艺工程师", department="生产部"),
+        models.User(username="malin", display_name="马琳", role="项目经理", department="生产部"),
+        models.User(username="guoweidong", display_name="郭伟东", role="研发工程师", department="生产部"),
+        models.User(username="tangxiaoyu", display_name="唐小玉", role="质量工程师", department="生产部"),
+        models.User(username="fengrui", display_name="冯睿", role="工艺工程师", department="生产部"),
+        models.User(username="caoyue", display_name="曹月", role="IT工程师", department="生产部"),
+        models.User(username="donghaibo", display_name="董海波", role="研发工程师", department="生产部"),
+        models.User(username="panhong", display_name="潘虹", role="质量工程师", department="生产部"),
+        models.User(username="shenlei", display_name="沈磊", role="工艺工程师", department="生产部"),
+        models.User(username="duanxiaolin", display_name="段小林", role="项目经理", department="生产部"),
+        models.User(username="chengyu", display_name="程宇", role="研发工程师", department="生产部"),
+        models.User(username="yangqing", display_name="杨清", role="质量工程师", department="生产部"),
+        models.User(username="dengzhiming", display_name="邓志明", role="工艺工程师", department="生产部"),
+        models.User(username="wenlihua", display_name="温丽华", role="IT工程师", department="生产部"),
+        models.User(username="luojianhua", display_name="罗建华", role="研发工程师", department="生产部"),
     ]
     db.add_all(users)
     seed_platform_data(db)
