@@ -765,3 +765,43 @@ export async function createCAPAFromIssue(issueId: number) {
   const { data } = await client.post(`/api/quality/issues/${issueId}/create-capa`)
   return data
 }
+
+export async function getProblemReports() {
+  const { data } = await client.get('/api/problem-reports')
+  return data
+}
+
+export async function createProblemReport(payload: any) {
+  const { data } = await client.post('/api/problem-reports', payload)
+  return data
+}
+
+export async function updateProblemReport(id: number, payload: any) {
+  const { data } = await client.put(`/api/problem-reports/${id}`, payload)
+  return data
+}
+
+export async function deleteProblemReport(id: number) {
+  const { data } = await client.delete(`/api/problem-reports/${id}`)
+  return data
+}
+
+export async function getProcessParameters() {
+  const { data } = await client.get('/api/process-parameters')
+  return data
+}
+
+export async function createProcessParameter(payload: any) {
+  const { data } = await client.post('/api/process-parameters', payload)
+  return data
+}
+
+export async function updateProcessParameter(id: number, payload: any) {
+  const { data } = await client.put(`/api/process-parameters/${id}`, payload)
+  return data
+}
+
+export async function deleteProcessParameter(id: number) {
+  const { data } = await client.delete(`/api/process-parameters/${id}`)
+  return data
+}

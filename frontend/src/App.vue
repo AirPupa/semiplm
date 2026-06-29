@@ -132,14 +132,16 @@ const menuGroups = [
     title: '工艺管理',
     icon: IconFolder,
     children: [
-      { path: '/process', title: '工艺路线', permission: 'process' }
-    ]
+      { path: '/process', title: '工艺路线', permission: 'process' },
+      { path: '/process-parameters', title: '工艺参数库', permission: 'process' }
+    ],
   },
   {
     key: 'change',
     title: '工程变更',
     icon: IconSync,
     children: [
+      { path: '/problem-reports', title: 'PR 问题报告', permission: 'change' },
       { path: '/changes', title: 'ECR 变更申请', permission: 'change' }
     ]
   },

@@ -1,0 +1,196 @@
+<template>
+  <div class="panel" v-loading="loading">
+    <div class="toolbar">
+      <div>
+        <strong>PR 问题报告</strong>
+        <span class="muted"> · Problem Report，问题描述、分类、严重度、关联变更</span>
+      </div>
+      <el-button v-if="can('change')" type="primary" :icon="Plus" @click="openCreate">新建 PR</el-button>
+    </div>
+
+    <el-table :data="filtered" stripe height="680">
+      <el-table-column prop="pr_no" label="PR 编号" width="140" fixed />
+      <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
+      <el-table-column prop="problem_type" label="问题类型" width="110" />
+      <el-table-column prop="severity" label="严重度" width="90">
+        <template #default="{ row }">
+          <el-tag size="small" :type="row.severity === '严重' ? 'danger' : row.severity === '高' ? 'warning' : 'info'">
+            {{ row.severity }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="source" label="来源" width="90" />
+      <el-table-column prop="product_model" label="产品型号" width="130" />
+      <el-table-column prop="status" label="状态" width="100">
+        <template #default="{ row }">
+          <el-tag size="small" :type="row.status === '已关闭' ? 'success' : row.status === '评估中' ? 'warning' : 'info'">
+            {{ row.status }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="reporter" label="报告人" width="100" />
+      <el-table-column prop="reported_at" label="报告日期" width="110" />
+      <el-table-column prop="related_change_no" label="关联变更" width="120" />
+      <el-table-column label="操作" width="150" fixed="right">
+        <template #default="{ row }">
+          <el-button size="small" :disabled="!can('change') || row.status === '已关闭'" @click.stop="openEdit(row)">编辑</el-button>
+          <el-button size="small" type="danger" :disabled="!can('change') || row.status === '已关闭'" @click.stop="remove(row)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑 PR' : '新建 PR'" width="720px">
+      <el-form :model="form" label-width="90px">
+        <div class="form-grid">
+          <el-form-item label="问题标题" class="form-wide"><el-input v-model="form.title" /></el-form-item>
+          <el-form-item label="PR 编号"><el-input v-model="form.pr_no" placeholder="留空自动生成" /></el-form-item>
+          <el-form-item label="问题类型">
+            <el-select v-model="form.problem_type">
+              <el-option label="设计问题" value="设计问题" />
+              <el-option label="工艺问题" value="工艺问题" />
+              <el-option label="材料问题" value="材料问题" />
+              <el-option label="质量异常" value="质量异常" />
+              <el-option label="客户反馈" value="客户反馈" />
+              <el-option label="其他" value="其他" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="严重度">
+            <el-select v-model="form.severity">
+              <el-option label="严重" value="严重" />
+              <el-option label="高" value="高" />
+              <el-option label="中" value="中" />
+              <el-option label="低" value="低" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="来源">
+            <el-select v-model="form.source">
+              <el-option label="内部" value="内部" />
+              <el-option label="客户" value="客户" />
+              <el-option label="供应商" value="供应商" />
+              <el-option label="质量" value="质量" />
+              <el-option label="生产" value="生产" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="产品型号"><el-input v-model="form.product_model" /></el-form-item>
+          <el-form-item label="状态">
+            <el-select v-model="form.status">
+              <el-option label="新建" value="新建" />
+              <el-option label="评估中" value="评估中" />
+              <el-option label="待处理" value="待处理" />
+              <el-option label="已关闭" value="已关闭" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="报告人"><UserSelect v-model="form.reporter" /></el-form-item>
+          <el-form-item label="报告日期"><el-input v-model="form.reported_at" /></el-form-item>
+          <el-form-item label="关联变更"><el-input v-model="form.related_change_no" placeholder="如 ECR-xxx" /></el-form-item>
+          <el-form-item label="问题描述" class="form-wide"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
+          <el-form-item label="建议措施" class="form-wide"><el-input v-model="form.suggested_action" type="textarea" :rows="3" /></el-form-item>
+          <el-form-item label="备注" class="form-wide"><el-input v-model="form.remark" type="textarea" :rows="2" /></el-form-item>
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="save">保存</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, onMounted, ref } from 'vue'
+import { createProblemReport, deleteProblemReport, getProblemReports, updateProblemReport } from '../api'
+import { useAuth } from '../auth'
+import UserSelect from '../components/UserSelect.vue'
+
+const loading = ref(true)
+const { can, currentUser } = useAuth()
+const reports = ref<any[]>([])
+const search = ref('')
+const dialogVisible = ref(false)
+const editingId = ref<number | null>(null)
+
+const emptyForm = {
+  pr_no: '',
+  title: '',
+  problem_type: '设计问题',
+  severity: '中',
+  source: '内部',
+  product_id: undefined,
+  product_model: '',
+  description: '',
+  suggested_action: '',
+  status: '新建',
+  reporter: '',
+  reported_at: '',
+  related_change_no: '',
+  remark: '',
+}
+const form = ref<any>({ ...emptyForm })
+
+const filtered = computed(() => {
+  const q = search.value.toLowerCase()
+  if (!q) return reports.value
+  return reports.value.filter((r: any) =>
+    r.pr_no?.toLowerCase().includes(q) ||
+    r.title?.toLowerCase().includes(q) ||
+    r.product_model?.toLowerCase().includes(q)
+  )
+})
+
+function todayText() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+async function load() {
+  reports.value = await getProblemReports()
+}
+
+function openCreate() {
+  editingId.value = null
+  form.value = {
+    ...emptyForm,
+    reporter: currentUser.value?.display_name || '',
+    reported_at: todayText(),
+  }
+  dialogVisible.value = true
+}
+
+function openEdit(row: any) {
+  if (!can('change') || row.status === '已关闭') return
+  editingId.value = row.id
+  form.value = { ...row }
+  dialogVisible.value = true
+}
+
+async function save() {
+  if (!can('change')) return
+  if (!form.value.title) {
+    ElMessage.warning('请输入问题标题')
+    return
+  }
+  if (editingId.value) {
+    await updateProblemReport(editingId.value, form.value)
+    ElMessage.success('PR 已更新')
+  } else {
+    await createProblemReport(form.value)
+    ElMessage.success('PR 已创建')
+  }
+  dialogVisible.value = false
+  await load()
+}
+
+async function remove(row: any) {
+  if (!can('change') || row.status === '已关闭') return
+  await ElMessageBox.confirm(`确认删除 PR ${row.pr_no}？已关闭的 PR 不可删除。`, '删除确认', { type: 'warning' })
+  await deleteProblemReport(row.id)
+  ElMessage.success('PR 已删除')
+  await load()
+}
+
+onMounted(async () => {
+  await load()
+  loading.value = false
+})
+</script>

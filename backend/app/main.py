@@ -660,6 +660,65 @@ class ChangeActionClosePayload(BaseModel):
     result: str = "已完成"
 
 
+class ProblemReportPayload(BaseModel):
+    pr_no: str = ""
+    title: str
+    problem_type: str = "设计问题"
+    severity: str = "中"
+    source: str = "内部"
+    product_id: int | None = None
+    product_model: str = ""
+    description: str = ""
+    suggested_action: str = ""
+    status: str = "新建"
+    reporter: str = ""
+    reported_at: str = ""
+    related_change_no: str = ""
+    remark: str = ""
+
+
+class ProblemReportUpdatePayload(BaseModel):
+    title: str | None = None
+    problem_type: str | None = None
+    severity: str | None = None
+    source: str | None = None
+    product_id: int | None = None
+    product_model: str | None = None
+    description: str | None = None
+    suggested_action: str | None = None
+    status: str | None = None
+    reporter: str | None = None
+    reported_at: str | None = None
+    related_change_no: str | None = None
+    remark: str | None = None
+
+
+class ProcessParameterPayload(BaseModel):
+    param_code: str = ""
+    param_name: str
+    param_type: str = "CD"
+    unit: str = ""
+    category: str = ""
+    default_value: str = ""
+    min_value: str = ""
+    max_value: str = ""
+    description: str = ""
+    status: str = "启用"
+
+
+class ProcessParameterUpdatePayload(BaseModel):
+    param_code: str | None = None
+    param_name: str | None = None
+    param_type: str | None = None
+    unit: str | None = None
+    category: str | None = None
+    default_value: str | None = None
+    min_value: str | None = None
+    max_value: str | None = None
+    description: str | None = None
+    status: str | None = None
+
+
 class OrganizationPayload(BaseModel):
     code: str
     name: str
@@ -4419,4 +4478,112 @@ def create_capa_from_issue(issue_id: int, db: Session = Depends(get_db), _: dict
     db.commit()
     db.refresh(capa)
     return {"id": capa.id, "capa_no": capa.capa_no}
+
+
+@app.get("/api/problem-reports")
+def problem_reports(db: Session = Depends(get_db)) -> list[dict]:
+    rows = db.query(models.ProblemReport).order_by(models.ProblemReport.id.desc()).all()
+    return [
+        {
+            "id": r.id,
+            "pr_no": r.pr_no,
+            "title": r.title,
+            "problem_type": r.problem_type,
+            "severity": r.severity,
+            "source": r.source,
+            "product_id": r.product_id,
+            "product_model": r.product_model,
+            "description": r.description,
+            "suggested_action": r.suggested_action,
+            "status": r.status,
+            "reporter": r.reporter,
+            "reported_at": r.reported_at,
+            "related_change_no": r.related_change_no,
+            "remark": r.remark,
+        }
+        for r in rows
+    ]
+
+
+@app.post("/api/problem-reports", status_code=201)
+def create_problem_report(payload: ProblemReportPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("change"))) -> dict:
+    count = db.query(models.ProblemReport).count() + 1
+    pr_no = payload.pr_no or f"PR-{count:04d}"
+    row = models.ProblemReport(**{**payload.model_dump(), "pr_no": pr_no})
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"id": row.id, "pr_no": row.pr_no}
+
+
+@app.put("/api/problem-reports/{report_id}")
+def update_problem_report(report_id: int, payload: ProblemReportUpdatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("change"))) -> dict:
+    row = db.query(models.ProblemReport).filter(models.ProblemReport.id == report_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Problem report not found")
+    update_model(row, payload)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/problem-reports/{report_id}")
+def delete_problem_report(report_id: int, db: Session = Depends(get_db), _: dict = Depends(require_permission("change"))) -> dict:
+    row = db.query(models.ProblemReport).filter(models.ProblemReport.id == report_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Problem report not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/process-parameters")
+def process_parameters(db: Session = Depends(get_db)) -> list[dict]:
+    rows = db.query(models.ProcessParameter).order_by(models.ProcessParameter.id.asc()).all()
+    return [
+        {
+            "id": r.id,
+            "param_code": r.param_code,
+            "param_name": r.param_name,
+            "param_type": r.param_type,
+            "unit": r.unit,
+            "category": r.category,
+            "default_value": r.default_value,
+            "min_value": r.min_value,
+            "max_value": r.max_value,
+            "description": r.description,
+            "status": r.status,
+        }
+        for r in rows
+    ]
+
+
+@app.post("/api/process-parameters", status_code=201)
+def create_process_parameter(payload: ProcessParameterPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
+    count = db.query(models.ProcessParameter).count() + 1
+    param_code = payload.param_code or f"PARAM-{count:04d}"
+    row = models.ProcessParameter(**{**payload.model_dump(), "param_code": param_code})
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"id": row.id, "param_code": row.param_code}
+
+
+@app.put("/api/process-parameters/{param_id}")
+def update_process_parameter(param_id: int, payload: ProcessParameterUpdatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
+    row = db.query(models.ProcessParameter).filter(models.ProcessParameter.id == param_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Process parameter not found")
+    update_model(row, payload)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/process-parameters/{param_id}")
+def delete_process_parameter(param_id: int, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
+    row = db.query(models.ProcessParameter).filter(models.ProcessParameter.id == param_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Process parameter not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
 

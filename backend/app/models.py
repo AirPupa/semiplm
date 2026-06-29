@@ -698,3 +698,39 @@ class Supplier(Base):
     risk_level: Mapped[str] = mapped_column(String(20), default="中")
     status: Mapped[str] = mapped_column(String(30), default="启用")
     description: Mapped[str] = mapped_column(Text, default="")
+
+
+class ProblemReport(Base):
+    __tablename__ = "problem_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pr_no: Mapped[str] = mapped_column(String(80), unique=True)
+    title: Mapped[str] = mapped_column(String(200))
+    problem_type: Mapped[str] = mapped_column(String(60), default="设计问题")
+    severity: Mapped[str] = mapped_column(String(20), default="中")
+    source: Mapped[str] = mapped_column(String(60), default="内部")
+    product_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    product_model: Mapped[str] = mapped_column(String(80), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    suggested_action: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(30), default="新建")
+    reporter: Mapped[str] = mapped_column(String(80))
+    reported_at: Mapped[str] = mapped_column(String(30))
+    related_change_no: Mapped[str] = mapped_column(String(80), default="")
+    remark: Mapped[str] = mapped_column(Text, default="")
+
+
+class ProcessParameter(Base):
+    __tablename__ = "process_parameters"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    param_code: Mapped[str] = mapped_column(String(64), unique=True)
+    param_name: Mapped[str] = mapped_column(String(120))
+    param_type: Mapped[str] = mapped_column(String(40), default="CD")
+    unit: Mapped[str] = mapped_column(String(40), default="")
+    category: Mapped[str] = mapped_column(String(60), default="")
+    default_value: Mapped[str] = mapped_column(String(80), default="")
+    min_value: Mapped[str] = mapped_column(String(80), default="")
+    max_value: Mapped[str] = mapped_column(String(80), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(30), default="启用")
