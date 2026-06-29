@@ -8,7 +8,11 @@
       <el-button v-if="can('change')" type="primary" :icon="Plus" @click="openCreate">新建 PR</el-button>
     </div>
 
-    <el-table :data="filtered" stripe height="680">
+    <div class="toolbar compact-toolbar">
+      <el-input v-model="search" placeholder="搜索 PR 编号 / 标题 / 产品型号" clearable style="width: 320px" />
+    </div>
+
+    <el-table :data="filtered" stripe height="640">
       <el-table-column prop="pr_no" label="PR 编号" width="140" fixed />
       <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
       <el-table-column prop="problem_type" label="问题类型" width="110" />
@@ -71,7 +75,11 @@
               <el-option label="生产" value="生产" />
             </el-select>
           </el-form-item>
-          <el-form-item label="产品型号"><el-input v-model="form.product_model" /></el-form-item>
+          <el-form-item label="产品型号">
+            <el-select v-model="form.product_model" filterable placeholder="选择产品" @change="onProductChange">
+              <el-option v-for="p in products" :key="p.id" :label="p.model" :value="p.model" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="form.status">
               <el-option label="新建" value="新建" />
@@ -100,13 +108,14 @@
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
-import { createProblemReport, deleteProblemReport, getProblemReports, updateProblemReport } from '../api'
+import { createProblemReport, deleteProblemReport, getProblemReports, updateProblemReport, getProducts } from '../api'
 import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
 
 const loading = ref(true)
 const { can, currentUser } = useAuth()
 const reports = ref<any[]>([])
+const products = ref<any[]>([])
 const search = ref('')
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -145,6 +154,11 @@ function todayText() {
 
 async function load() {
   reports.value = await getProblemReports()
+}
+
+function onProductChange(model: string) {
+  const p = products.value.find((x: any) => x.model === model)
+  form.value.product_id = p?.id || undefined
 }
 
 function openCreate() {
@@ -190,6 +204,7 @@ async function remove(row: any) {
 }
 
 onMounted(async () => {
+  products.value = await getProducts()
   await load()
   loading.value = false
 })

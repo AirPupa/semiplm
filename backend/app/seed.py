@@ -31,6 +31,12 @@ def seed_database(db: Session) -> None:
         if not db.query(models.ChangeAction).first():
             seed_change_execution_data(db)
             db.commit()
+        if not db.query(models.ProblemReport).first():
+            seed_problem_reports(db)
+            db.commit()
+        if not db.query(models.ProcessParameter).first():
+            seed_process_parameters(db)
+            db.commit()
         return
     if existing:
         for model in [
@@ -551,4 +557,57 @@ def seed_foundation_config(db: Session) -> None:
         issues = db.query(models.QualityIssue).filter(models.QualityIssue.status != "已关闭").order_by(models.QualityIssue.id).limit(3).all()
         for idx, issue in enumerate(issues, start=1):
             db.add(models.QualityCAPA(capa_no=f"CAPA-{idx:04d}", issue_id=issue.id, title=f"CAPA: {issue.title}", source="质量问题", root_cause=issue.root_cause, corrective_action=issue.corrective_action, owner=issue.owner, status="待处理"))
+
+
+def seed_problem_reports(db: Session) -> None:
+    products = db.query(models.Product).order_by(models.Product.id).all()
+    product_map = {p.model: p for p in products}
+    pr_rows = [
+        ("PR-2026-001", "PD-1550-10G 边缘 Wafer 暗电流偏高", "质量异常", "高", "内部",
+         "PD-1550-10G", "试产批次 LOT-PD-1550-10G-2603 边缘 Wafer 暗电流超规格上限，初步定位为刻蚀后侧壁残留与钝化膜覆盖不足共同影响。",
+         "调整 ICP 清洗步骤和 PECVD 钝化膜厚，受影响 Wafer 追加 LIV/暗电流复测。", "评估中", "于帅兵", "2026-06-16", "ECR-PD-1550-10G-001", ""),
+        ("PR-2026-002", "VCSEL-940-3W 光刻 CD 均匀性波动", "工艺问题", "中", "内部",
+         "VCSEL-940-3W", "6 inch 晶圆中心与边缘 CD 差异偏大，可能影响阵列一致性及后续 Wafer map 分选。",
+         "优化光刻曝光剂量分布和显影时间 SPC 管控，增加边缘 CD 监测频次。", "待处理", "罗富森", "2026-06-18", "ECR-VCSEL-940-3W-001", ""),
+        ("PR-2026-003", "DFB-1310-25G 封装耦合效率下降", "工艺问题", "中", "客户",
+         "DFB-1310-25G", "客户反馈最近一批耦合功率较前批下降约 8%，怀疑光纤耦合对准偏差或 Die attach 位置漂移。",
+         "核查封装工艺对准精度和点胶量，重新校准耦合台。", "新建", "于帅兵", "2026-06-22", "", "客户要求 7 月初给出分析报告。"),
+        ("PR-2026-004", "SiPh-MZM-400G 流片后波导损耗偏大", "设计问题", "高", "内部",
+         "SiPh-MZM-400G", "流片回来测试发现条波导插损高于仿真预期 0.5dB/cm，疑似刻蚀粗糙度或侧壁角偏差。",
+         "对比仿真与实测 SEM 截面，调整刻蚀气体配比和压力。", "评估中", "张昊", "2026-06-25", "ECR-SiPh-MZM-400G-001", ""),
+    ]
+    for row in pr_rows:
+        product = product_map.get(row[5])
+        db.add(models.ProblemReport(
+            pr_no=row[0], title=row[1], problem_type=row[2], severity=row[3], source=row[4],
+            product_id=product.id if product else None, product_model=row[5],
+            description=row[6], suggested_action=row[7], status=row[8], reporter=row[9],
+            reported_at=row[10], related_change_no=row[11], remark=row[12],
+        ))
+
+
+def seed_process_parameters(db: Session) -> None:
+    param_rows = [
+        ("PP-CD-001", "光刻关键线宽 CD", "CD", "nm", "光刻", "120", "100", "140", "i-line Stepper 曝光后线宽控制目标值", "启用"),
+        ("PP-CD-002", "光刻接触孔 CD", "CD", "nm", "光刻", "3.0", "2.5", "3.5", "接触孔直径控制，影响接触电阻", "启用"),
+        ("PP-OVL-001", "Overlay 套刻精度", "Overlay", "nm", "光刻", "30", "0", "50", "层间套刻误差，影响器件性能和良率", "启用"),
+        ("PP-ETCH-001", "ICP 刻蚀深度", "刻蚀深度", "nm", "刻蚀", "200", "180", "220", "Cl2/BCl3 干法刻蚀深度目标", "启用"),
+        ("PP-ETCH-002", "刻蚀侧壁角", "刻蚀深度", "°", "刻蚀", "88", "85", "90", "刻蚀剖面角度，影响后续镀膜覆盖", "启用"),
+        ("PP-FILM-001", "PVD 金属膜厚", "膜厚", "nm", "薄膜", "300", "280", "320", "Ti/Pt/Au 金属层厚度", "启用"),
+        ("PP-FILM-002", "PECVD 介质膜厚", "膜厚", "nm", "薄膜", "500", "450", "550", "SiO2 钝化层厚度", "启用"),
+        ("PP-FILM-003", "介质膜折射率", "折射率", "-", "薄膜", "1.46", "1.44", "1.48", "SiO2 折射率，反映薄膜致密性", "启用"),
+        ("PP-RSH-001", "金属层片阻", "片阻", "Ω/sq", "薄膜", "0.05", "0.03", "0.08", "金属化层方阻，影响欧姆接触", "启用"),
+        ("PP-FILM-004", "薄膜应力", "应力", "MPa", "薄膜", "-50", "-200", "100", "PECVD 薄膜残余应力，负值表示压应力", "启用"),
+        ("PP-LIV-001", "阈值电流", "LIV/IV", "mA", "晶圆测试", "5.0", "3.0", "8.0", "VCSEL/DFB 激光器阈值电流", "启用"),
+        ("PP-LIV-002", "响应度", "LIV/IV", "A/W", "晶圆测试", "0.85", "0.70", "1.00", "光电探测器响应度", "启用"),
+        ("PP-LIV-003", "暗电流", "LIV/IV", "nA", "晶圆测试", "5", "0", "20", "PD 反偏暗电流，影响灵敏度", "启用"),
+        ("PP-WMAP-001", "Wafer Map Bin1 良率", "Wafer Map", "%", "晶圆测试", "95", "90", "100", "晶圆级 Bin1 分布良率", "启用"),
+        ("PP-ROUGH-001", "刻蚀表面粗糙度", "粗糙度", "nm", "刻蚀", "0.8", "0.3", "1.5", "刻蚀后表面 RMS 粗糙度，影响波导损耗", "启用"),
+    ]
+    for row in param_rows:
+        db.add(models.ProcessParameter(
+            param_code=row[0], param_name=row[1], param_type=row[2], unit=row[3],
+            category=row[4], default_value=row[5], min_value=row[6], max_value=row[7],
+            description=row[8], status=row[9],
+        ))
 

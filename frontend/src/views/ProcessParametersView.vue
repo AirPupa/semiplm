@@ -8,7 +8,11 @@
       <el-button v-if="can('process')" type="primary" :icon="Plus" @click="openCreate">新建参数</el-button>
     </div>
 
-    <el-table :data="filtered" stripe height="680">
+    <div class="toolbar compact-toolbar">
+      <el-input v-model="search" placeholder="搜索参数编号 / 名称 / 类型 / 分类" clearable style="width: 360px" />
+    </div>
+
+    <el-table :data="filtered" stripe height="640">
       <el-table-column prop="param_code" label="参数编号" width="140" fixed />
       <el-table-column prop="param_name" label="参数名称" width="180" />
       <el-table-column prop="param_type" label="类型" width="130">
