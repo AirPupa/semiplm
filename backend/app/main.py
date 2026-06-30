@@ -1,3 +1,4 @@
+import hashlib
 import os
 import io
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -179,6 +180,7 @@ def ensure_lightweight_schema() -> None:
         },
         "users": {
             "avatar_url": "VARCHAR(500) DEFAULT ''",
+            "password_hash": "VARCHAR(128) DEFAULT ''",
         },
     }
     with engine.begin() as conn:
@@ -2293,6 +2295,52 @@ def withdraw_business_object(db: Session, instance: models.WorkflowInstance) -> 
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+class LoginPayload(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/session/login")
+def session_login(payload: LoginPayload, db: Session = Depends(get_db)) -> dict:
+    user = db.query(models.User).filter(models.User.username == payload.username).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="账号不存在")
+    # 首次登录无密码时，自动用默认密码 123456 的哈希填充
+    if not user.password_hash:
+        user.password_hash = hash_password("123456")
+        db.commit()
+    if user.password_hash != hash_password(payload.password):
+        raise HTTPException(status_code=401, detail="密码错误")
+    role = db.query(models.Role).filter(models.Role.name == user.role, models.Role.status == "启用").first()
+    if not role:
+        fallback_code = USER_ROLE_FALLBACKS.get(user.username)
+        if fallback_code:
+            role = db.query(models.Role).filter(models.Role.code == fallback_code, models.Role.status == "启用").first()
+    if not role:
+        role_keyword = user.role.replace("整合", "")
+        role = (
+            db.query(models.Role)
+            .filter(models.Role.name.like(f"%{role_keyword}%"), models.Role.status == "启用")
+            .first()
+        )
+    permissions = split_permissions(role.permissions if role else "")
+    return {
+        "user": user_dict(user),
+        "role": {
+            "id": role.id if role else None,
+            "code": role.code if role else "",
+            "name": role.name if role else user.role,
+            "description": role.description if role else "",
+            "status": role.status if role else "未配置",
+        },
+        "permissions": permissions,
+    }
 
 
 @app.get("/api/session/current")

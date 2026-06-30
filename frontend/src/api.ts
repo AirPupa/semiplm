@@ -11,13 +11,13 @@ client.interceptors.request.use((config) => {
   return config
 })
 
-export async function getCurrentSession() {
-  const { data } = await client.get('/api/session/current')
+export async function loginWithPassword(username: string, password: string) {
+  const { data } = await client.post('/api/session/login', { username, password })
   return data
 }
 
-export async function getLoginUsers() {
-  const { data } = await client.get('/api/session/login-users')
+export async function getCurrentSession() {
+  const { data } = await client.get('/api/session/current')
   return data
 }
 

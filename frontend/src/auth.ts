@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { getCurrentSession, updateCurrentProfile } from './api'
+import { getCurrentSession, loginWithPassword, updateCurrentProfile } from './api'
 
 const session = ref<any>(null)
 const loadingSession = ref(false)
@@ -23,13 +23,10 @@ export function useAuth() {
     }
   }
 
-  function setCurrentUser(username: string) {
+  async function login(username: string, password: string) {
+    const data = await loginWithPassword(username, password)
     localStorage.setItem('semiplm.currentUser', username)
-  }
-
-  async function login(username: string) {
-    setCurrentUser(username)
-    await refreshSession()
+    session.value = data
   }
 
   function logout() {
@@ -52,7 +49,6 @@ export function useAuth() {
     permissions,
     refreshSession,
     session,
-    setCurrentUser,
     updateProfile,
   }
 }

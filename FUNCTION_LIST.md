@@ -125,6 +125,8 @@
 - 已完成附件权限/审计细化第一轮：附件 API 按对象类型校验业务权限，上传/下载/删除写入操作日志，上传人来自当前用户。
 - 已完成编码规则独立页：新增 `/admin/coding-rules` 菜单和 `CodingRulesView.vue`，编码规则从基础配置 tab 拆出，支持分页、搜索和 CRUD。
 - 已完成分类属性独立页：新增 `/admin/category-templates` 菜单和 `CategoryTemplatesView.vue`，分类模板和属性模板从基础配置 tab 拆出，支持分页、搜索和 CRUD。
-- 已完成登录页与头像设置：新增 `/login` 登录页、前端登录态守卫、右上角头像设置、用户头像字段和个人资料更新 API。
-- 下一步：继续拆生命周期、数据字典独立页；报表快照后续接真实后台定时任务。
+- 已完成登录页改为账号密码输入方式：User 模型新增 password_hash 字段（SHA256），新增 POST /api/session/login 接口验证账号密码；所有用户默认密码 123456；前端登录页从选择账号下拉改为账号+密码输入框。
+- 已完成生命周期模板独立页：新增 `/admin/lifecycle-templates` 菜单和 `LifecycleTemplatesView.vue`，生命周期模板和状态从基础配置 tab 拆出，支持分页、搜索、CRUD，行展开维护状态流转。
+- 已完成数据字典独立页：新增 `/admin/dictionaries` 菜单和 `DictionaryView.vue`，数据字典从基础配置 tab 拆出，支持分页、搜索、CRUD；基础配置大页面已完全拆分完毕，不再保留。
+- 下一步：基础配置拆分完毕，后续关注工作台增强、业务闭环验证或报表定时任务。
 

@@ -330,5 +330,8 @@
 - 已完成：编码规则独立页。新增 `CodingRulesView.vue` 和 `/admin/coding-rules` 路由/菜单，按列表页标准支持服务端搜索、分页、新增、编辑、删除；FoundationConfigView 移除编码规则 tab，仅保留分类属性、生命周期、数据字典。
 - 已完成：分类属性独立页。新增 `CategoryTemplatesView.vue` 和 `/admin/category-templates` 路由/菜单，支持分类模板分页/搜索/CRUD，并在行展开中维护属性模板新增、编辑、删除；FoundationConfigView 移除分类属性 tab，仅保留生命周期、数据字典。
 - 已完成：登录页与头像设置第一轮。新增 `/login` 公开路由和登录页，进入系统前需选择用户登录；前端路由守卫基于本地当前用户判断登录态，退出登录后回到登录页；User 模型新增 `avatar_url` 字段并通过轻量迁移补齐，`/api/session/current` 返回头像，新增 `/api/session/login-users` 和 `/api/session/profile`；右上角显示用户头像并支持头像 URL/姓名设置，用户管理页支持查看和编辑头像 URL。
-- 下一步：继续拆基础配置中的生命周期、数据字典为独立页；报表快照后续可接真实后台定时任务。
+- 已完成：登录页改为账号密码输入方式。User 模型新增 `password_hash` 字段（SHA256），新增 `POST /api/session/login` 接口验证账号密码；所有用户默认密码 `123456`，首次登录自动填充哈希；前端 LoginView.vue 从选择账号下拉改为账号+密码输入框，App.vue 移除切换账号下拉功能；登录失败显示具体错误（账号不存在/密码错误）。
+- 已完成：生命周期模板独立页。新增 `LifecycleTemplatesView.vue` 和 `/admin/lifecycle-templates` 路由/菜单，按列表页标准支持服务端搜索、分页、新增、编辑、删除模板，行展开维护状态的新增/编辑/删除；FoundationConfigView 移除生命周期 tab，仅保留数据字典。
+- 已完成：数据字典独立页。新增 `DictionaryView.vue` 和 `/admin/dictionaries` 路由/菜单，按列表页标准支持服务端搜索、分页、新增、编辑、删除；基础配置大页面 FoundationConfigView 已完全拆分完毕（编码规则→分类属性→生命周期→数据字典→系统参数全部独立），不再保留该页面和路由。
+- 下一步：基础配置大页面拆分完毕，后续可关注工作台待办流程增强、整体业务闭环验证，或报表快照接真实后台定时任务。
 

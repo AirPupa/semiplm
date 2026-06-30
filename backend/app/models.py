@@ -10,6 +10,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(128), default="")
     display_name: Mapped[str] = mapped_column(String(80))
     role: Mapped[str] = mapped_column(String(40))
     department: Mapped[str] = mapped_column(String(80), default="生产部")

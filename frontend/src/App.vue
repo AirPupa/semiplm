@@ -47,10 +47,6 @@
               <a-doption disabled>{{ session?.role?.name || '系统管理员' }}</a-doption>
               <a-doption @click="openProfileDialog">头像设置</a-doption>
               <a-doption @click="handleLogout">退出登录</a-doption>
-              <a-doption v-if="can('user')" disabled>切换账号</a-doption>
-              <a-doption v-for="user in switchableUsers" :key="user.id" @click="switchUser(user.username)">
-                切换：{{ user.display_name }}
-              </a-doption>
             </template>
           </a-dropdown>
         </div>
@@ -83,7 +79,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { getAdminUsers } from './api'
 import { useAuth } from './auth'
 import { Message } from '@arco-design/web-vue'
 import {
@@ -100,10 +95,9 @@ import {
 
 const router = useRouter()
 const collapsed = ref(false)
-const users = ref<any[]>([])
 const profileDialogVisible = ref(false)
 const profileForm = ref({ display_name: '', avatar_url: '' })
-const { can, logout, refreshSession, session, setCurrentUser, updateProfile } = useAuth()
+const { can, logout, refreshSession, session, updateProfile } = useAuth()
 
 const menuGroups = [
   {
@@ -126,7 +120,8 @@ const menuGroups = [
       { path: '/admin/roles', title: '角色管理', permission: 'role' },
       { path: '/admin/coding-rules', title: '编码规则', permission: 'system' },
       { path: '/admin/category-templates', title: '分类属性', permission: 'system' },
-      { path: '/admin/foundation', title: '基础配置', permission: 'system' },
+      { path: '/admin/lifecycle-templates', title: '生命周期', permission: 'system' },
+      { path: '/admin/dictionaries', title: '数据字典', permission: 'system' },
       { path: '/admin/system-parameters', title: '系统参数', permission: 'system' },
       { path: '/admin/workflows', title: '流程配置', permission: 'workflow' }
     ]
@@ -230,7 +225,6 @@ const currentGroup = computed(() => {
   }
   return ''
 })
-const switchableUsers = computed(() => users.value.filter((user) => user.username !== session.value?.user?.username))
 const userInitial = computed(() => initials(session.value?.user?.display_name || '系'))
 
 function initials(name: string) {
@@ -240,21 +234,6 @@ function initials(name: string) {
 async function loadSession() {
   if (!localStorage.getItem('semiplm.currentUser')) return
   await refreshSession()
-  if (!can('user')) {
-    users.value = []
-    return
-  }
-  const userRes = await getAdminUsers()
-  users.value = userRes.items ?? userRes
-}
-
-async function switchUser(username: string) {
-  setCurrentUser(username)
-  await loadSession()
-  const visiblePaths = visibleMenuGroups.value.flatMap((group) => group.children.map((item) => item.path))
-  if (!visiblePaths.includes(router.currentRoute.value.path)) {
-    router.push(visiblePaths[0] || '/dashboard')
-  }
 }
 
 function openProfileDialog() {
