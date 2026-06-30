@@ -3,30 +3,12 @@
     <div class="toolbar">
       <div>
         <strong>基础配置</strong>
-        <span class="muted"> · 编码、分类属性、生命周期、枚举字典统一维护</span>
+        <span class="muted"> · 分类属性、生命周期、枚举字典统一维护</span>
       </div>
       <el-button type="primary" :icon="Plus" @click="openCreate">新增配置</el-button>
     </div>
 
     <el-tabs v-model="activeTab" class="admin-tabs">
-      <el-tab-pane label="编码规则" name="coding">
-        <el-table :data="codingRules" height="620">
-          <el-table-column prop="object_type" label="对象" width="110" />
-          <el-table-column prop="code" label="规则编码" width="150" />
-          <el-table-column prop="name" label="规则名称" min-width="160" />
-          <el-table-column prop="pattern" label="编码模式" min-width="230" />
-          <el-table-column prop="current_no" label="当前流水" width="100" />
-          <el-table-column prop="sample" label="样例" min-width="170" />
-          <el-table-column prop="status" label="状态" width="90" />
-          <el-table-column label="操作" width="150" fixed="right">
-            <template #default="{ row }">
-              <el-button size="small" @click="openEdit(row)">编辑</el-button>
-              <el-button size="small" type="danger" @click="removeMain(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-tab-pane>
-
       <el-tab-pane label="分类属性" name="category">
         <el-table :data="categories" row-key="id" height="620">
           <el-table-column type="expand">
@@ -132,17 +114,7 @@
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="760px">
       <el-form :model="form" label-width="100px">
         <div class="form-grid">
-          <template v-if="activeTab === 'coding'">
-            <el-form-item label="对象"><el-input v-model="form.object_type" /></el-form-item>
-            <el-form-item label="规则编码"><el-input v-model="form.code" /></el-form-item>
-            <el-form-item label="规则名称"><el-input v-model="form.name" /></el-form-item>
-            <el-form-item label="前缀"><el-input v-model="form.prefix" /></el-form-item>
-            <el-form-item label="编码模式"><el-input v-model="form.pattern" /></el-form-item>
-            <el-form-item label="当前流水"><el-input-number v-model="form.current_no" :min="0" /></el-form-item>
-            <el-form-item label="样例"><el-input v-model="form.sample" /></el-form-item>
-            <el-form-item label="状态"><el-select v-model="form.status"><el-option label="启用" value="启用" /><el-option label="停用" value="停用" /></el-select></el-form-item>
-          </template>
-          <template v-else-if="activeTab === 'category'">
+          <template v-if="activeTab === 'category'">
             <el-form-item label="对象"><el-input v-model="form.object_type" /></el-form-item>
             <el-form-item label="分类编码"><el-input v-model="form.code" /></el-form-item>
             <el-form-item label="分类名称"><el-input v-model="form.name" /></el-form-item>
@@ -213,31 +185,26 @@ import { computed, onMounted, ref, watch } from 'vue'
 import {
   createAttributeTemplate,
   createCategoryTemplate,
-  createCodingRule,
   createDictionaryItem,
   createLifecycleState,
   createLifecycleTemplate,
   deleteAttributeTemplate,
   deleteCategoryTemplate,
-  deleteCodingRule,
   deleteDictionaryItem,
   deleteLifecycleState,
   deleteLifecycleTemplate,
   getCategoryTemplates,
-  getCodingRules,
   getDictionaryItems,
   getLifecycleTemplates,
   updateAttributeTemplate,
   updateCategoryTemplate,
-  updateCodingRule,
   updateDictionaryItem,
   updateLifecycleState,
   updateLifecycleTemplate,
 } from '../api'
 
 const loading = ref(true)
-const activeTab = ref('coding')
-const codingRules = ref<any[]>([])
+const activeTab = ref('category')
 const categories = ref<any[]>([])
 const lifecycles = ref<any[]>([])
 const dictionaryItems = ref<any[]>([])
@@ -251,23 +218,20 @@ const childForm = ref<any>({})
 
 const dialogTitle = computed(() => `${editingId.value ? '编辑' : '新增'}${tabName.value}`)
 const childDialogTitle = computed(() => `${childEditingId.value ? '编辑' : '新增'}${activeTab.value === 'category' ? '属性' : '状态'}`)
-const tabName = computed(() => ({ coding: '编码规则', category: '分类模板', lifecycle: '生命周期', dictionary: '字典项' }[activeTab.value] || '配置'))
+const tabName = computed(() => ({ category: '分类模板', lifecycle: '生命周期', dictionary: '字典项' }[activeTab.value] || '配置'))
 
 async function loadRows() {
-  const [rules, categoryRows, lifecycleRows, dictionaries] = await Promise.all([
-    getCodingRules({ page: 1, page_size: 1000 }),
+  const [categoryRows, lifecycleRows, dictionaries] = await Promise.all([
     getCategoryTemplates({ page: 1, page_size: 1000 }),
     getLifecycleTemplates({ page: 1, page_size: 1000 }),
     getDictionaryItems({ page: 1, page_size: 1000 }),
   ])
-  codingRules.value = rules.items ?? rules
   categories.value = categoryRows.items ?? categoryRows
   lifecycles.value = lifecycleRows.items ?? lifecycleRows
   dictionaryItems.value = dictionaries.items ?? dictionaries
 }
 
 function emptyMainForm() {
-  if (activeTab.value === 'coding') return { object_type: '', code: '', name: '', prefix: '', pattern: '', current_no: 0, sample: '', status: '启用', owner: '' }
   if (activeTab.value === 'category') return { object_type: '', code: '', name: '', parent_code: '', lifecycle_template: '', coding_rule: '', status: '启用', description: '' }
   if (activeTab.value === 'lifecycle') return { code: '', name: '', object_type: '', status: '启用', description: '' }
   return { dict_code: '', dict_name: '', item_value: '', item_label: '', object_scope: '', sequence: 1, status: '启用' }
@@ -293,7 +257,6 @@ function openEdit(row: any) {
 }
 
 async function saveMain() {
-  if (activeTab.value === 'coding') editingId.value ? await updateCodingRule(editingId.value, form.value) : await createCodingRule(form.value)
   if (activeTab.value === 'category') editingId.value ? await updateCategoryTemplate(editingId.value, form.value) : await createCategoryTemplate(form.value)
   if (activeTab.value === 'lifecycle') editingId.value ? await updateLifecycleTemplate(editingId.value, form.value) : await createLifecycleTemplate(form.value)
   if (activeTab.value === 'dictionary') editingId.value ? await updateDictionaryItem(editingId.value, form.value) : await createDictionaryItem(form.value)
@@ -304,7 +267,6 @@ async function saveMain() {
 
 async function removeMain(row: any) {
   await ElMessageBox.confirm(`确认删除 ${row.name || row.code || row.dict_name || row.param_key}？`, '删除确认', { type: 'warning' })
-  if (activeTab.value === 'coding') await deleteCodingRule(row.id)
   if (activeTab.value === 'category') await deleteCategoryTemplate(row.id)
   if (activeTab.value === 'lifecycle') await deleteLifecycleTemplate(row.id)
   if (activeTab.value === 'dictionary') await deleteDictionaryItem(row.id)

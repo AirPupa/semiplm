@@ -96,6 +96,7 @@ const menuGroups = [
       { path: '/admin/organizations', title: '组织管理', permission: 'organization' },
       { path: '/admin/users', title: '用户管理', permission: 'user' },
       { path: '/admin/roles', title: '角色管理', permission: 'role' },
+      { path: '/admin/coding-rules', title: '编码规则', permission: 'system' },
       { path: '/admin/foundation', title: '基础配置', permission: 'system' },
       { path: '/admin/system-parameters', title: '系统参数', permission: 'system' },
       { path: '/admin/workflows', title: '流程配置', permission: 'workflow' }
