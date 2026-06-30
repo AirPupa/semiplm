@@ -988,6 +988,12 @@ class SystemParameterUpdatePayload(BaseModel):
     description: str | None = None
 
 
+class ReportSnapshotPayload(BaseModel):
+    report_type: str
+    generated_by: str = "系统用户"
+    schedule_key: str = "manual"
+
+
 class SubstituteMaterialPayload(BaseModel):
     material_code: str
     material_name: str
@@ -5716,6 +5722,75 @@ def report_quality_closure(db: Session = Depends(get_db)) -> dict:
         "quality_trend": [{"date": d, "cp": round(cp, 1), "ft": round(ft, 1)} for d, cp, ft in quality_trend_rows],
         "issues": issue_rows,
     }
+
+
+REPORT_SNAPSHOT_TYPES = {
+    "completeness": ("数据完整度", report_completeness),
+    "change": ("变更周期", report_change_cycle),
+    "project": ("项目进度", report_project_progress),
+    "quality": ("质量闭环", report_quality_closure),
+}
+
+
+def _report_snapshot_dict(row: models.ReportSnapshot) -> dict:
+    import json
+
+    try:
+        summary = json.loads(row.summary_json or "{}")
+    except Exception:
+        summary = {}
+    return {
+        "id": row.id,
+        "snapshot_no": row.snapshot_no,
+        "report_type": row.report_type,
+        "report_name": row.report_name,
+        "summary": summary,
+        "generated_by": row.generated_by,
+        "generated_at": row.generated_at,
+        "schedule_key": row.schedule_key,
+    }
+
+
+@app.get("/api/reports/snapshots")
+def report_snapshots(page: int = 1, page_size: int = 20, report_type: str = "", db: Session = Depends(get_db)) -> dict:
+    q = db.query(models.ReportSnapshot)
+    if report_type:
+        q = q.filter(models.ReportSnapshot.report_type == report_type)
+    total = q.count()
+    rows = q.order_by(models.ReportSnapshot.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [_report_snapshot_dict(row) for row in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@app.post("/api/reports/snapshots", status_code=201)
+def create_report_snapshot(payload: ReportSnapshotPayload, db: Session = Depends(get_db)) -> dict:
+    import json
+    from datetime import datetime
+
+    config = REPORT_SNAPSHOT_TYPES.get(payload.report_type)
+    if not config:
+        raise HTTPException(status_code=400, detail="Unknown report type")
+    report_name, report_fn = config
+    data = report_fn(db)
+    now = datetime.now()
+    row = models.ReportSnapshot(
+        snapshot_no=f"RPT-{payload.report_type.upper()}-{now.strftime('%Y%m%d%H%M%S%f')}",
+        report_type=payload.report_type,
+        report_name=report_name,
+        summary_json=json.dumps(data.get("summary", {}), ensure_ascii=False),
+        payload_json=json.dumps(data, ensure_ascii=False),
+        generated_by=payload.generated_by,
+        generated_at=now.strftime("%Y-%m-%d %H:%M"),
+        schedule_key=payload.schedule_key or "manual",
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _report_snapshot_dict(row)
 
 
 @app.get("/api/reports/completeness/export")

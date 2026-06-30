@@ -72,6 +72,7 @@ def seed_database(db: Session) -> None:
             models.QualityLot,
             models.QualityIssue,
             models.Attachment,
+            models.ReportSnapshot,
             models.Material,
             models.Product,
             models.User,
@@ -692,6 +693,7 @@ def seed_foundation_config(db: Session) -> None:
             ("DATE_FORMAT", "YYYY-MM-DD", "系统", "日期格式"),
             ("PREFIX_PRODUCT", "OPTO", "编码", "产品编码前缀"),
             ("PREFIX_ECR", "ECR", "编码", "变更单编码前缀"),
+            ("REPORT_SNAPSHOT_CRON", "0 2 * * *", "报表", "报表快照计划表达式，默认每日 02:00"),
         ]
         for key, value, group, desc in params:
             db.add(models.SystemParameter(param_key=key, param_value=value, param_group=group, description=desc))

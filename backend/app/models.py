@@ -769,6 +769,20 @@ class QualityReport(Base):
     archived_by: Mapped[str] = mapped_column(String(80), default="")
 
 
+class ReportSnapshot(Base):
+    __tablename__ = "report_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    snapshot_no: Mapped[str] = mapped_column(String(80), unique=True)
+    report_type: Mapped[str] = mapped_column(String(60))
+    report_name: Mapped[str] = mapped_column(String(120))
+    summary_json: Mapped[str] = mapped_column(Text, default="{}")
+    payload_json: Mapped[str] = mapped_column(Text, default="{}")
+    generated_by: Mapped[str] = mapped_column(String(80), default="")
+    generated_at: Mapped[str] = mapped_column(String(30), default="")
+    schedule_key: Mapped[str] = mapped_column(String(80), default="")
+
+
 class Attachment(Base):
     __tablename__ = "attachments"
 

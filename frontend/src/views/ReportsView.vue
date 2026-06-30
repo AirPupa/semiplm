@@ -5,7 +5,11 @@
         <strong>报表与审计</strong>
         <span class="muted"> · 数据完整度、变更周期、项目进度、质量闭环、操作审计</span>
       </div>
-      <el-button @click="reloadAll">刷新全部</el-button>
+      <div class="toolbar-actions">
+        <el-button @click="openSnapshotHistory">快照历史</el-button>
+        <el-button type="primary" :loading="snapshotCreating" @click="createSnapshotForActive">生成当前快照</el-button>
+        <el-button @click="reloadAll">刷新全部</el-button>
+      </div>
     </div>
     <el-tabs v-model="activeTab" class="compact-tabs" @tab-change="onTabChange">
       <!-- 数据完整度 -->
@@ -262,6 +266,40 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <el-dialog v-model="snapshotDialogVisible" title="报表快照历史" width="920px">
+      <div class="snapshot-toolbar">
+        <el-select v-model="snapshotFilter" style="width: 180px" @change="loadSnapshots">
+          <el-option label="全部报表" value="" />
+          <el-option v-for="item in reportTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
+        <el-button @click="loadSnapshots">刷新</el-button>
+      </div>
+      <el-table :data="snapshots" size="small" height="420" v-loading="snapshotLoading">
+        <el-table-column prop="snapshot_no" label="快照编号" width="230" fixed show-overflow-tooltip />
+        <el-table-column prop="report_name" label="报表" width="120" />
+        <el-table-column prop="generated_at" label="生成时间" width="150" />
+        <el-table-column prop="generated_by" label="生成人" width="110" />
+        <el-table-column prop="schedule_key" label="来源" width="100">
+          <template #default="{ row }">{{ row.schedule_key === 'manual' ? '手动' : row.schedule_key }}</template>
+        </el-table-column>
+        <el-table-column label="摘要" min-width="260" show-overflow-tooltip>
+          <template #default="{ row }">{{ snapshotSummaryText(row.summary) }}</template>
+        </el-table-column>
+      </el-table>
+      <div class="pagination-bar" v-if="snapshotPagination.total > snapshotPagination.pageSize">
+        <el-pagination
+          v-model:current-page="snapshotPagination.page"
+          v-model:page-size="snapshotPagination.pageSize"
+          :total="snapshotPagination.total"
+          :page-sizes="[20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="onSnapshotSizeChange"
+          @current-change="loadSnapshots"
+        />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -269,6 +307,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
+  createReportSnapshot,
   exportReportChangeCycle,
   exportReportCompleteness,
   exportReportProjectProgress,
@@ -277,7 +316,9 @@ import {
   getReportCompleteness,
   getReportProjectProgress,
   getReportQualityClosure,
+  getReportSnapshots,
 } from '../api'
+import { useAuth } from '../auth'
 
 const loading = ref(true)
 const activeTab = ref('completeness')
@@ -286,6 +327,19 @@ const completeness = ref<any>(null)
 const changeCycle = ref<any>(null)
 const projectProgress = ref<any>(null)
 const qualityClosure = ref<any>(null)
+const { session } = useAuth()
+const snapshotCreating = ref(false)
+const snapshotDialogVisible = ref(false)
+const snapshotLoading = ref(false)
+const snapshotFilter = ref('')
+const snapshots = ref<any[]>([])
+const snapshotPagination = ref({ page: 1, pageSize: 20, total: 0 })
+const reportTypeOptions = [
+  { value: 'completeness', label: '数据完整度' },
+  { value: 'change', label: '变更周期' },
+  { value: 'project', label: '项目进度' },
+  { value: 'quality', label: '质量闭环' },
+]
 
 const completenessMetrics = computed(() => {
   const s = completeness.value?.summary || {}
@@ -417,6 +471,53 @@ async function doExport(type: string) {
   }
 }
 
+async function createSnapshotForActive() {
+  snapshotCreating.value = true
+  try {
+    const generatedBy = session.value?.user?.display_name || '系统用户'
+    await createReportSnapshot({ report_type: activeTab.value, generated_by: generatedBy, schedule_key: 'manual' })
+    ElMessage.success('报表快照已生成')
+    if (snapshotDialogVisible.value) await loadSnapshots()
+  } catch {
+    ElMessage.error('生成快照失败')
+  } finally {
+    snapshotCreating.value = false
+  }
+}
+
+async function openSnapshotHistory() {
+  snapshotDialogVisible.value = true
+  snapshotFilter.value = ''
+  snapshotPagination.value.page = 1
+  await loadSnapshots()
+}
+
+async function loadSnapshots() {
+  snapshotLoading.value = true
+  try {
+    const res = await getReportSnapshots({
+      page: snapshotPagination.value.page,
+      page_size: snapshotPagination.value.pageSize,
+      report_type: snapshotFilter.value || undefined,
+    })
+    snapshots.value = res.items || []
+    snapshotPagination.value.total = res.total || 0
+  } finally {
+    snapshotLoading.value = false
+  }
+}
+
+function onSnapshotSizeChange(size: number) {
+  snapshotPagination.value.pageSize = size
+  snapshotPagination.value.page = 1
+  loadSnapshots()
+}
+
+function snapshotSummaryText(summary: any) {
+  if (!summary) return ''
+  return Object.entries(summary).map(([key, value]) => `${key}: ${value}`).join('，')
+}
+
 async function reloadAll() {
   loading.value = true
   try {
@@ -513,5 +614,16 @@ onMounted(async () => {
 .trend-chart {
   width: 100%;
   height: 260px;
+}
+.snapshot-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
 }
 </style>

@@ -736,6 +736,16 @@ export async function exportReportQualityClosure() {
   triggerDownload(res, 'report_quality_closure.xlsx')
 }
 
+export async function getReportSnapshots(params?: { page?: number; page_size?: number; report_type?: string }) {
+  const { data } = await client.get('/api/reports/snapshots', { params })
+  return data
+}
+
+export async function createReportSnapshot(payload: { report_type: string; generated_by?: string; schedule_key?: string }) {
+  const { data } = await client.post('/api/reports/snapshots', payload)
+  return data
+}
+
 export async function getAttachments(objectType: string, objectId: number) {
   const { data } = await client.get('/api/attachments', { params: { object_type: objectType, object_id: objectId } })
   return data
