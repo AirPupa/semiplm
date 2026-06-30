@@ -23,6 +23,8 @@
                 <el-descriptions-item label="变更原因" :span="2">{{ row.reason }}</el-descriptions-item>
                 <el-descriptions-item label="变更前" :span="2">{{ row.before_desc }}</el-descriptions-item>
                 <el-descriptions-item label="变更后" :span="2">{{ row.after_desc }}</el-descriptions-item>
+                <el-descriptions-item v-if="row.change_type === 'ECO' && row.implementation_plan" label="执行计划" :span="2">{{ row.implementation_plan }}</el-descriptions-item>
+                <el-descriptions-item v-if="row.change_type === 'ECN' && row.notification_list" label="通知范围" :span="2">{{ row.notification_list }}</el-descriptions-item>
               </el-descriptions>
               <div class="section-gap">
                 <div class="toolbar compact-toolbar">
@@ -285,32 +287,26 @@
           </el-form-item>
           <el-form-item label="变更类型">
             <el-select v-model="form.change_type">
-              <el-option label="PR 问题报告" value="PR" />
-              <el-option label="ECR 变更申请" value="ECR" />
-              <el-option label="ECO 变更指令" value="ECO" />
-              <el-option label="ECN 变更通知" value="ECN" />
+              <el-option v-for="o in changeFormTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="优先级">
             <el-select v-model="form.priority">
-              <el-option label="高" value="高" />
-              <el-option label="中" value="中" />
-              <el-option label="低" value="低" />
+              <el-option v-for="o in priorityOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="负责人"><UserSelect v-model="form.owner" /></el-form-item>
           <el-form-item label="状态">
             <el-select v-model="form.status">
-              <el-option label="草稿" value="草稿" />
-              <el-option label="审批中" value="审批中" />
-              <el-option label="执行中" value="执行中" />
-              <el-option label="已关闭" value="已关闭" />
+              <el-option v-for="o in changeStatusOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="标题" class="form-wide"><el-input v-model="form.title" /></el-form-item>
           <el-form-item label="变更原因" class="form-wide"><el-input v-model="form.reason" type="textarea" :rows="2" /></el-form-item>
           <el-form-item label="变更前" class="form-wide"><el-input v-model="form.before_desc" type="textarea" :rows="3" /></el-form-item>
           <el-form-item label="变更后" class="form-wide"><el-input v-model="form.after_desc" type="textarea" :rows="3" /></el-form-item>
+          <el-form-item v-if="form.change_type === 'ECO'" label="执行计划" class="form-wide"><el-input v-model="form.implementation_plan" type="textarea" :rows="3" placeholder="变更执行方案、对象升版计划、任务拆解" /></el-form-item>
+          <el-form-item v-if="form.change_type === 'ECN'" label="通知范围" class="form-wide"><el-input v-model="form.notification_list" type="textarea" :rows="3" placeholder="通知对象、生效范围、下发部门" /></el-form-item>
         </div>
       </el-form>
       <template #footer>
@@ -321,13 +317,15 @@
 
     <el-dialog v-model="impactDialogVisible" :title="editingImpactId ? '编辑影响项' : '新增影响项'" width="620px">
       <el-form :model="impactForm" label-width="86px">
-        <el-form-item label="对象类型"><el-input v-model="impactForm.impact_type" /></el-form-item>
+        <el-form-item label="对象类型">
+          <el-select v-model="impactForm.impact_type" filterable allow-create placeholder="选择或输入">
+            <el-option v-for="o in changeTargetTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="影响范围"><el-input v-model="impactForm.target" /></el-form-item>
         <el-form-item label="风险">
           <el-select v-model="impactForm.risk">
-            <el-option label="高" value="高" />
-            <el-option label="中" value="中" />
-            <el-option label="低" value="低" />
+            <el-option v-for="o in riskLevelOptions" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="处理动作"><el-input v-model="impactForm.action" type="textarea" :rows="3" /></el-form-item>
@@ -342,27 +340,25 @@
       <el-form :model="actionForm" label-width="90px">
         <div class="form-grid">
           <el-form-item label="动作编号"><el-input v-model="actionForm.action_no" placeholder="留空自动生成" /></el-form-item>
-          <el-form-item label="动作类型"><el-input v-model="actionForm.action_type" /></el-form-item>
+          <el-form-item label="动作类型">
+            <el-select v-model="actionForm.action_type" filterable allow-create placeholder="选择或输入">
+              <el-option v-for="o in ecaTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="对象类型">
             <el-select v-model="actionForm.target_type" clearable>
-              <el-option label="BOM" value="BOM" />
-              <el-option label="文档" value="文档" />
-              <el-option label="工艺路线" value="工艺路线" />
-              <el-option label="通知" value="通知" />
-              <el-option label="其他" value="其他" />
+              <el-option v-for="o in ecaTargetTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="对象ID"><el-input-number v-model="actionForm.target_id" :min="1" controls-position="right" /></el-form-item>
           <el-form-item label="当前版本"><el-input v-model="actionForm.target_version" /></el-form-item>
           <el-form-item label="生效方式">
             <el-select v-model="actionForm.effectivity_type">
-              <el-option label="日期" value="日期" />
-              <el-option label="批次" value="批次" />
-              <el-option label="日期+批次" value="日期+批次" />
+              <el-option v-for="o in ecaEffectivityOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="生效范围"><el-input v-model="actionForm.effectivity_scope" /></el-form-item>
-          <el-form-item label="生效日期"><el-input v-model="actionForm.effective_date" /></el-form-item>
+          <el-form-item label="生效日期"><el-date-picker v-model="actionForm.effective_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" /></el-form-item>
           <el-form-item label="生效批次"><el-input v-model="actionForm.effective_batch" placeholder="LOT / Wafer / 试产批次" /></el-form-item>
           <el-form-item label="生成对象"><el-input v-model="actionForm.generated_object_no" disabled /></el-form-item>
           <el-form-item label="对象" class="form-wide"><el-input v-model="actionForm.target_object" /></el-form-item>
@@ -370,12 +366,10 @@
           <el-form-item label="负责人"><UserSelect v-model="actionForm.owner" /></el-form-item>
           <el-form-item label="状态">
             <el-select v-model="actionForm.status">
-              <el-option label="待处理" value="待处理" />
-              <el-option label="进行中" value="进行中" />
-              <el-option label="已完成" value="已完成" />
+              <el-option v-for="o in ecaStatusOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
-          <el-form-item label="截止日期"><el-input v-model="actionForm.due_date" /></el-form-item>
+          <el-form-item label="截止日期"><el-date-picker v-model="actionForm.due_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" /></el-form-item>
           <el-form-item label="结果" class="form-wide"><el-input v-model="actionForm.result" type="textarea" :rows="3" /></el-form-item>
         </div>
       </el-form>
@@ -390,7 +384,7 @@
 <script setup lang="ts">
 import { Operation, Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   analyzeChange,
@@ -416,6 +410,18 @@ import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
 import AttachmentPanel from '../components/AttachmentPanel.vue'
 import { useListPage } from '../composables/useListPage'
+import { useDictionary } from '../composables/useDictionary'
+
+const priorityOptions = useDictionary('DICT_PRIORITY').options
+const changeStatusOptions = useDictionary('DICT_CHANGE_STATUS').options
+const changeFormTypeOptions = useDictionary('DICT_CHANGE_FORM_TYPE').options
+const changeTargetTypeOptions = useDictionary('DICT_CHANGE_TARGET_TYPE').options
+const riskLevelOptions = useDictionary('DICT_RISK_LEVEL').options
+const ecaTypeOptions = useDictionary('DICT_ECA_TYPE').options
+const ecaStatusOptions = useDictionary('DICT_ECA_STATUS').options
+const effectivityOptions = useDictionary('DICT_EFFECTIVITY_TYPE').options
+const ecaEffectivityOptions = computed(() => effectivityOptions.value.filter((o) => ['日期', '批次', '日期+批次'].includes(o.value)))
+const ecaTargetTypeOptions = computed(() => changeTargetTypeOptions.value.filter((o) => ['BOM', '文档', '工艺路线', '通知', '其他'].includes(o.value)))
 
 const router = useRouter()
 const { can, currentUser, refreshSession } = useAuth()
@@ -428,7 +434,7 @@ const archiveDialogVisible = ref(false)
 const archiveDetail = ref<any>({})
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
-const emptyForm = { product_id: undefined, change_no: '', title: '', change_type: 'ECR', reason: '', status: '草稿', priority: '中', owner: '', before_desc: '', after_desc: '' }
+const emptyForm = { product_id: undefined, change_no: '', title: '', change_type: 'ECR', reason: '', status: '草稿', priority: '中', owner: '', before_desc: '', after_desc: '', implementation_plan: '', notification_list: '' }
 const form = ref<any>({ ...emptyForm })
 const impactDialogVisible = ref(false)
 const editingImpactId = ref<number | null>(null)

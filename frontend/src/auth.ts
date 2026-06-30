@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { getCurrentSession, loginWithPassword, updateCurrentProfile } from './api'
+import { getCurrentSession, loginWithPassword } from './api'
 
 const session = ref<any>(null)
 const loadingSession = ref(false)
@@ -34,12 +34,6 @@ export function useAuth() {
     session.value = null
   }
 
-  async function updateProfile(payload: { display_name?: string; avatar_url?: string }) {
-    const user = await updateCurrentProfile(payload)
-    if (session.value) session.value.user = user
-    return user
-  }
-
   return {
     can,
     currentUser,
@@ -49,6 +43,5 @@ export function useAuth() {
     permissions,
     refreshSession,
     session,
-    updateProfile,
   }
 }

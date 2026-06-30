@@ -16,12 +16,7 @@
           <el-option label="系统配置" value="系统配置" />
         </el-select>
         <el-select v-model="filterAction" clearable placeholder="动作" style="width:110px" @change="onSearch">
-          <el-option label="新增" value="新增" />
-          <el-option label="编辑" value="编辑" />
-          <el-option label="删除" value="删除" />
-          <el-option label="提交" value="提交" />
-          <el-option label="发布" value="发布" />
-          <el-option label="关闭" value="关闭" />
+          <el-option v-for="o in actionTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
         </el-select>
         <el-button @click="onSearch">刷新</el-button>
       </div>
@@ -47,9 +42,11 @@ import { Search } from '@element-plus/icons-vue'
 import { onMounted, ref } from 'vue'
 import { getAuditLogs } from '../api'
 import { useListPage } from '../composables/useListPage'
+import { useDictionary } from '../composables/useDictionary'
 
 const filterObjectType = ref('')
 const filterAction = ref('')
+const actionTypeOptions = useDictionary('DICT_ACTION_TYPE').options
 const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(
   (params) => getAuditLogs({ ...params, object_type: filterObjectType.value, action: filterAction.value })
 )

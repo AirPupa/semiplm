@@ -397,6 +397,8 @@ class Change(Base):
     submitted_at: Mapped[str] = mapped_column(String(30))
     before_desc: Mapped[str] = mapped_column(Text)
     after_desc: Mapped[str] = mapped_column(Text)
+    implementation_plan: Mapped[str] = mapped_column(Text, default="")
+    notification_list: Mapped[str] = mapped_column(Text, default="")
 
     product: Mapped["Product"] = relationship(back_populates="changes")
     impacts: Mapped[list["ChangeImpact"]] = relationship(back_populates="change", cascade="all, delete-orphan")
@@ -488,6 +490,9 @@ class Project(Base):
     start_date: Mapped[str] = mapped_column(String(30))
     end_date: Mapped[str] = mapped_column(String(30))
     risk_level: Mapped[str] = mapped_column(String(20))
+    archived_at: Mapped[str] = mapped_column(String(30), default="")
+    archived_by: Mapped[str] = mapped_column(String(80), default="")
+    archive_summary: Mapped[str] = mapped_column(Text, default="")
 
     tasks: Mapped[list["ProjectTask"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     deliverables: Mapped[list["ProjectDeliverable"]] = relationship(back_populates="project", cascade="all, delete-orphan")
@@ -798,3 +803,21 @@ class Attachment(Base):
     description: Mapped[str] = mapped_column(String(240), default="")
     uploaded_by: Mapped[str] = mapped_column(String(80), default="")
     uploaded_at: Mapped[str] = mapped_column(String(30), default="")
+
+
+class DocumentDistribution(Base):
+    __tablename__ = "document_distributions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(Integer)
+    doc_no: Mapped[str] = mapped_column(String(80), default="")
+    title: Mapped[str] = mapped_column(String(160), default="")
+    version: Mapped[str] = mapped_column(String(20), default="")
+    recipient_type: Mapped[str] = mapped_column(String(30), default="角色")
+    recipient: Mapped[str] = mapped_column(String(120), default="")
+    status: Mapped[str] = mapped_column(String(30), default="已发放")
+    distributed_by: Mapped[str] = mapped_column(String(80), default="")
+    distributed_at: Mapped[str] = mapped_column(String(30), default="")
+    recalled_by: Mapped[str] = mapped_column(String(80), default="")
+    recalled_at: Mapped[str] = mapped_column(String(30), default="")
+    recall_reason: Mapped[str] = mapped_column(String(240), default="")

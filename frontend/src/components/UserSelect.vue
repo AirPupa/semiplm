@@ -24,6 +24,7 @@ const value = computed({
 })
 
 onMounted(async () => {
-  users.value = await getAdminUsers()
+  const res: any = await getAdminUsers({ page: 1, page_size: 500 })
+  users.value = res?.items || []
 })
 </script>

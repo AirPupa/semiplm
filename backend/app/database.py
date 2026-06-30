@@ -3,7 +3,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-DATABASE_URL = os.getenv("SEMIPLM_DATABASE_URL", "sqlite:///./semiplm.db")
+DATABASE_URL = os.getenv("SEMIPLM_DATABASE_URL", "sqlite:///./semiplm_demo.db")
 
 engine = create_engine(
     DATABASE_URL,

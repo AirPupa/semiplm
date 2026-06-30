@@ -8,6 +8,8 @@
         <el-input v-model="keyword" placeholder="搜索产品型号/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
         <el-button v-if="can('bom')" :disabled="!selected" @click="openTransform">转 PBOM/MBOM</el-button>
         <el-button :disabled="!selected" @click="openCompare">BOM 比较</el-button>
+        <el-button :disabled="!selected" @click="openProcessCoverage">工序校验</el-button>
+        <el-button :disabled="!selected" @click="openLineage">转换血缘</el-button>
         <el-button v-if="can('bom')" type="primary" :icon="Plus" @click="openBomCreate">新建 BOM</el-button>
       </div>
     </div>
@@ -24,6 +26,8 @@
                 <div class="toolbar-actions">
                   <el-button size="small" :icon="Plus" @click="openItemCreate" :disabled="!can('bom') || row.status === '已发布'">新增行</el-button>
                   <el-button size="small" @click="triggerImport" :disabled="!can('bom') || row.status === '已发布'">导入</el-button>
+                  <el-button size="small" @click="handleDownloadTemplate" :disabled="!can('bom')">下载模板</el-button>
+                  <el-button size="small" @click="openBatchEdit" :disabled="!can('bom') || row.status === '已发布' || !row.items?.length">批量编辑</el-button>
                   <el-button size="small" type="danger" @click="removeBom" :disabled="!can('bom') || row.status === '已发布'">删除 BOM</el-button>
                 </div>
               </div>
@@ -105,25 +109,20 @@
           </el-form-item>
           <el-form-item label="BOM 类型">
             <el-select v-model="bomForm.bom_type">
-              <el-option label="EBOM" value="EBOM" />
-              <el-option label="MBOM" value="MBOM" />
-              <el-option label="PBOM" value="PBOM" />
+              <el-option v-for="o in bomTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="版本"><el-input v-model="bomForm.version" /></el-form-item>
           <el-form-item label="状态">
             <el-select v-model="bomForm.status">
-              <el-option label="编制中" value="编制中" />
-              <el-option label="审批中" value="审批中" />
+              <el-option v-for="o in bomStatusOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="负责人"><UserSelect v-model="bomForm.owner" /></el-form-item>
           <el-form-item label="发布日期"><el-input v-model="bomForm.release_date" placeholder="发布时自动写入" /></el-form-item>
           <el-form-item label="有效类型">
             <el-select v-model="bomForm.effectivity_type">
-              <el-option label="日期" value="日期" />
-              <el-option label="批次" value="批次" />
-              <el-option label="项目" value="项目" />
+              <el-option v-for="o in bomEffectivityOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="生效日期"><el-input v-model="bomForm.effective_date" placeholder="YYYY-MM-DD" /></el-form-item>
@@ -174,8 +173,7 @@
         <el-form-item label="来源 BOM"><span>{{ selected?.product_model }} {{ selected?.type }} {{ selected?.version }}</span></el-form-item>
         <el-form-item label="目标类型">
           <el-select v-model="transformForm.target_type">
-            <el-option label="PBOM" value="PBOM" />
-            <el-option label="MBOM" value="MBOM" />
+            <el-option v-for="o in downstreamBomTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="目标版本"><el-input v-model="transformForm.version" /></el-form-item>
@@ -183,9 +181,7 @@
         <el-form-item label="生效日期"><el-input v-model="transformForm.effective_date" placeholder="YYYY-MM-DD" /></el-form-item>
         <el-form-item label="有效类型">
           <el-select v-model="transformForm.effectivity_type">
-            <el-option label="日期" value="日期" />
-            <el-option label="批次" value="批次" />
-            <el-option label="项目" value="项目" />
+            <el-option v-for="o in bomEffectivityOptions" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -241,6 +237,67 @@
       </el-table>
     </el-dialog>
 
+    <el-dialog v-model="processCoverageDialogVisible" title="工序物料分配校验" width="780px">
+      <div v-if="processCoverage" class="object-strip">
+        <div><span>明细总数</span><strong>{{ processCoverage.total_items }}</strong></div>
+        <div><span>已分配工序</span><strong>{{ processCoverage.assigned }}</strong></div>
+        <div><span>未分配</span><strong :style="{ color: processCoverage.unassigned > 0 ? 'var(--el-color-danger)' : '' }">{{ processCoverage.unassigned }}</strong></div>
+        <div><span>覆盖率</span><strong>{{ (processCoverage.coverage_rate * 100).toFixed(1) }}%</strong></div>
+        <div>
+          <el-tag v-if="processCoverage.is_complete" size="small" type="success">分配完整</el-tag>
+          <el-tag v-else size="small" type="warning">存在未分配工序</el-tag>
+        </div>
+      </div>
+      <div v-if="processCoverage && !processCoverage.is_complete" class="muted" style="margin: 4px 0 8px">以下明细未关联工艺工序，发布前请补齐分配。</div>
+      <el-table :data="processCoverage?.unassigned_items || []" height="380" size="small">
+        <el-table-column prop="material_code" label="物料编码" width="140" fixed />
+        <el-table-column prop="material_name" label="物料名称" min-width="180" />
+        <el-table-column prop="position" label="位置" width="90" />
+        <el-table-column prop="quantity" label="用量" width="80" />
+        <el-table-column prop="unit" label="单位" width="70" />
+        <el-table-column prop="process_step" label="工序" width="140" />
+      </el-table>
+    </el-dialog>
+
+    <el-dialog v-model="lineageDialogVisible" title="BOM 转换血缘" width="820px">
+      <div v-if="lineageData">
+        <div class="muted" style="margin-bottom: 8px">当前：{{ lineageData.current.product_model }} {{ lineageData.current.bom_type }} {{ lineageData.current.version }}</div>
+        <div v-if="!lineageData.has_lineage" class="muted">该 BOM 暂无转换血缘记录</div>
+        <template v-else>
+          <div v-if="lineageData.ancestors.length" style="margin-bottom: 16px">
+            <div style="font-weight: 600; margin-bottom: 6px">来源链路（向上溯源）</div>
+            <el-table :data="lineageData.ancestors" size="small">
+              <el-table-column prop="bom_type" label="类型" width="90" />
+              <el-table-column prop="version" label="版本" width="90" />
+              <el-table-column prop="product_model" label="产品型号" width="140" />
+              <el-table-column prop="status" label="状态" width="90" />
+              <el-table-column prop="effective_date" label="生效日" width="120" />
+              <el-table-column label="操作" width="90">
+                <template #default="{ row }">
+                  <el-button size="small" @click="loadBoms(row.id)">查看</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+          <div v-if="lineageData.descendants.length">
+            <div style="font-weight: 600; margin-bottom: 6px">派生 BOM（向下追溯）</div>
+            <el-table :data="lineageData.descendants" size="small">
+              <el-table-column prop="bom_type" label="类型" width="90" />
+              <el-table-column prop="version" label="版本" width="90" />
+              <el-table-column prop="product_model" label="产品型号" width="140" />
+              <el-table-column prop="status" label="状态" width="90" />
+              <el-table-column prop="effective_date" label="生效日" width="120" />
+              <el-table-column label="操作" width="90">
+                <template #default="{ row }">
+                  <el-button size="small" @click="loadBoms(row.id)">查看</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </template>
+      </div>
+    </el-dialog>
+
     <el-dialog v-model="versionHistoryVisible" title="BOM 版本历史" width="960px">
       <el-table :data="versionHistory" height="420" size="small">
         <el-table-column prop="version" label="版本" width="80" fixed />
@@ -267,6 +324,59 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+
+    <el-dialog v-model="batchEditVisible" title="BOM 批量编辑" width="900px">
+      <el-tabs v-model="batchTab">
+        <el-tab-pane label="批量替换物料" name="replace">
+          <el-form label-width="100px" style="margin-top: 10px">
+            <el-form-item label="原物料编码">
+              <el-input v-model="batchReplaceForm.from_code" placeholder="输入要被替换的物料编码" />
+            </el-form-item>
+            <el-form-item label="新物料编码">
+              <el-input v-model="batchReplaceForm.to_code" placeholder="输入新物料编码" />
+            </el-form-item>
+            <el-form-item label="物料名称">
+              <el-input v-model="batchReplaceForm.to_name" placeholder="留空则从物料库自动填充" />
+            </el-form-item>
+            <el-button type="primary" @click="executeBatchReplace" :disabled="!batchReplaceForm.from_code || !batchReplaceForm.to_code">执行替换</el-button>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="批量修改用量" name="quantity">
+          <div style="margin-bottom: 10px">
+            <el-button size="small" @click="batchSelection = []">清空选择</el-button>
+            <span class="muted" style="margin-left: 12px">已选 {{ batchSelection.length }} 项</span>
+          </div>
+          <el-table :data="selected?.items || []" height="300" size="small" @selection-change="(val: any[]) => batchSelection = val">
+            <el-table-column type="selection" width="45" />
+            <el-table-column prop="material_code" label="物料编码" width="130" />
+            <el-table-column prop="material_name" label="物料名称" min-width="150" />
+            <el-table-column prop="quantity" label="当前用量" width="100" />
+            <el-table-column prop="unit" label="单位" width="70" />
+          </el-table>
+          <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px">
+            <span>统一改为</span>
+            <el-input-number v-model="batchQuantity" :min="0" :precision="3" :step="0.1" style="width: 140px" />
+            <el-button type="primary" @click="executeBatchQuantity" :disabled="!batchSelection.length">执行修改</el-button>
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="批量删除子件" name="delete">
+          <div style="margin-bottom: 10px">
+            <el-button size="small" @click="batchSelection = []">清空选择</el-button>
+            <span class="muted" style="margin-left: 12px">已选 {{ batchSelection.length }} 项</span>
+          </div>
+          <el-table :data="selected?.items || []" height="300" size="small" @selection-change="(val: any[]) => batchSelection = val">
+            <el-table-column type="selection" width="45" />
+            <el-table-column prop="material_code" label="物料编码" width="130" />
+            <el-table-column prop="material_name" label="物料名称" min-width="150" />
+            <el-table-column prop="quantity" label="用量" width="100" />
+            <el-table-column prop="process_step" label="工序" width="140" />
+          </el-table>
+          <div style="margin-top: 10px">
+            <el-button type="danger" @click="executeBatchDelete" :disabled="!batchSelection.length">删除选中项 ({{ batchSelection.length }})</el-button>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
   </div>
 </template>
 
@@ -276,12 +386,18 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import {
   approveBom,
+  batchDeleteBomItems,
+  batchReplaceBomMaterial,
+  batchUpdateBomQuantity,
   compareBoms,
   createBom,
   createBomItem,
   deleteBom,
   deleteBomItem,
+  downloadBomTemplate,
   exportBomExcel,
+  getBomLineage,
+  getBomProcessCoverage,
   getBomVersionHistory,
   getBomWhereUsed,
   getBoms,
@@ -297,8 +413,12 @@ import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
 import AttachmentPanel from '../components/AttachmentPanel.vue'
 import { useListPage } from '../composables/useListPage'
+import { useDictionary } from '../composables/useDictionary'
 
 const { can, currentUser, refreshSession } = useAuth()
+const bomTypeOptions = useDictionary('DICT_BOM_TYPE').options
+const bomStatusOptions = useDictionary('DICT_BOM_STATUS').options
+const effectivityOptions = useDictionary('DICT_EFFECTIVITY_TYPE').options
 const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getBoms)
 const products = ref<any[]>([])
 const processSteps = ref<any[]>([])
@@ -318,11 +438,23 @@ const itemForm = ref<any>({ ...emptyItem })
 const transformForm = ref<any>({ target_type: 'PBOM', version: 'A0', owner: '', effective_date: '', effectivity_type: '日期' })
 const compareTargetId = ref<number | undefined>()
 const compareResult = ref<any>()
+const processCoverageDialogVisible = ref(false)
+const processCoverage = ref<any>()
+const lineageDialogVisible = ref(false)
+const lineageData = ref<any>()
 const whereUsedRows = ref<any[]>([])
 const whereUsedMaterial = ref('')
 const versionHistoryVisible = ref(false)
 const versionHistory = ref<any[]>([])
 const fileInputRef = ref<HTMLInputElement>()
+const batchEditVisible = ref(false)
+const batchTab = ref('replace')
+const batchSelection = ref<any[]>([])
+const batchReplaceForm = ref<any>({ from_code: '', to_code: '', to_name: '' })
+const batchQuantity = ref(1)
+
+const bomEffectivityOptions = computed(() => effectivityOptions.value.filter((o) => ['日期', '批次', '项目'].includes(o.value)))
+const downstreamBomTypeOptions = computed(() => bomTypeOptions.value.filter((o) => ['PBOM', 'MBOM'].includes(o.value)))
 
 async function loadBoms(keepId?: number) {
   await loadData()
@@ -461,9 +593,21 @@ function openTransform() {
 async function saveTransform() {
   if (!can('bom') || !selected.value) return
   const row = await transformBom(selected.value.id, transformForm.value)
-  ElMessage.success(`${row.type} 已生成，可继续维护工序和有效期`)
+  const diff = row.transform_diff
   transformDialogVisible.value = false
   await loadBoms(row.id)
+  if (diff) {
+    const completeness = diff.process_is_complete ? '工序分配完整' : `仍有 ${diff.process_unassigned} 条未分配工序`
+    ElMessageBox.alert(
+      `已生成 ${row.type} ${row.version}，共 ${diff.items_total} 条明细。\n` +
+      `与来源差异：新增 ${diff.items_added} · 删除 ${diff.items_removed} · 变更 ${diff.items_changed}\n` +
+      `${completeness}，可前往「工序校验」核对，前往「转换血缘」查看链路。`,
+      '转换完成',
+      { confirmButtonText: '知道了' }
+    )
+  } else {
+    ElMessage.success(`${row.type} 已生成`)
+  }
 }
 
 function openCompare() {
@@ -476,6 +620,18 @@ function openCompare() {
 async function loadCompare() {
   if (!selected.value || !compareTargetId.value) return
   compareResult.value = await compareBoms(selected.value.id, compareTargetId.value)
+}
+
+async function openProcessCoverage() {
+  if (!selected.value) return
+  processCoverage.value = await getBomProcessCoverage(selected.value.id)
+  processCoverageDialogVisible.value = true
+}
+
+async function openLineage() {
+  if (!selected.value) return
+  lineageData.value = await getBomLineage(selected.value.id)
+  lineageDialogVisible.value = true
 }
 
 async function openWhereUsed(row: any) {
@@ -509,12 +665,90 @@ async function handleImport(event: Event) {
   if (!file || !selected.value) return
   try {
     const result = await importBomExcel(selected.value.id, file)
-    ElMessage.success(`成功导入 ${result.imported} 条物料`)
+    const parts: string[] = [`成功导入 ${result.imported} 条物料`]
+    if (result.warnings?.length) {
+      parts.push(`警告 ${result.warnings.length} 条`)
+    }
+    if (result.errors?.length) {
+      parts.push(`错误/跳过 ${result.errors.length} 条`)
+    }
+    ElMessage.success(parts.join('，'))
+    // Show detailed warnings/errors if any
+    if (result.warnings?.length || result.errors?.length) {
+      const details = [
+        ...(result.warnings || []).map((w: any) => `⚠️ 行${w.row}: ${w.message}`),
+        ...(result.errors || []).map((e: any) => `❌ 行${e.row}: ${e.message}`),
+      ].join('\n')
+      await ElMessageBox.alert(details, '导入结果详情', { type: 'warning', customClass: 'import-detail-msg' })
+    }
     await loadBoms(selected.value?.id)
   } catch {
     ElMessage.error('导入失败')
   }
   target.value = ''
+}
+
+async function handleDownloadTemplate() {
+  try {
+    const response = await downloadBomTemplate()
+    const blob = new Blob([response.data])
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'BOM_template.xlsx'
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch {
+    ElMessage.error('模板下载失败')
+  }
+}
+
+function openBatchEdit() {
+  if (!can('bom') || !selected.value || selected.value.status === '已发布') return
+  batchTab.value = 'replace'
+  batchSelection.value = []
+  batchReplaceForm.value = { from_code: '', to_code: '', to_name: '' }
+  batchQuantity.value = 1
+  batchEditVisible.value = true
+}
+
+async function executeBatchReplace() {
+  if (!selected.value) return
+  try {
+    const result = await batchReplaceBomMaterial(selected.value.id, batchReplaceForm.value)
+    ElMessage.success(`已替换 ${result.updated} 条物料记录`)
+    batchEditVisible.value = false
+    await loadBoms(selected.value.id)
+  } catch {
+    ElMessage.error('批量替换失败')
+  }
+}
+
+async function executeBatchQuantity() {
+  if (!selected.value || !batchSelection.value.length) return
+  try {
+    const ids = batchSelection.value.map((item: any) => item.id)
+    const result = await batchUpdateBomQuantity(selected.value.id, { item_ids: ids, quantity: batchQuantity.value })
+    ElMessage.success(`已修改 ${result.updated} 条物料用量`)
+    batchEditVisible.value = false
+    await loadBoms(selected.value.id)
+  } catch {
+    ElMessage.error('批量修改用量失败')
+  }
+}
+
+async function executeBatchDelete() {
+  if (!selected.value || !batchSelection.value.length) return
+  try {
+    await ElMessageBox.confirm(`确认删除选中的 ${batchSelection.value.length} 条BOM行？`, '批量删除确认', { type: 'warning' })
+    const ids = batchSelection.value.map((item: any) => item.id)
+    const result = await batchDeleteBomItems(selected.value.id, { item_ids: ids })
+    ElMessage.success(`已删除 ${result.deleted} 条BOM行`)
+    batchEditVisible.value = false
+    await loadBoms(selected.value.id)
+  } catch {
+    // user cancelled or error
+  }
 }
 
 async function openVersionHistory(row: any) {

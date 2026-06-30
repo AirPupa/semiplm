@@ -114,7 +114,7 @@
           <el-form-item label="标题" class="form-wide"><el-input v-model="issueForm.title" /></el-form-item>
           <el-form-item label="产品型号"><el-input v-model="issueForm.product_model" placeholder="输入产品型号" /></el-form-item>
           <el-form-item label="Lot 编号"><el-input v-model="issueForm.lot_no" /></el-form-item>
-          <el-form-item label="严重度"><el-select v-model="issueForm.severity"><el-option label="高" value="高" /><el-option label="中" value="中" /><el-option label="低" value="低" /></el-select></el-form-item>
+          <el-form-item label="严重度"><el-select v-model="issueForm.severity"><el-option v-for="o in severityOptions" :key="o.value" :label="o.label" :value="o.value" /></el-select></el-form-item>
           <el-form-item label="负责人"><UserSelect v-model="issueForm.owner" /></el-form-item>
           <el-form-item label="根因分析" class="form-wide"><el-input v-model="issueForm.root_cause" type="textarea" :rows="2" /></el-form-item>
           <el-form-item label="纠正措施" class="form-wide"><el-input v-model="issueForm.corrective_action" type="textarea" :rows="2" /></el-form-item>
@@ -133,7 +133,7 @@
         <el-form-item label="标题"><el-input v-model="capaForm.title" /></el-form-item>
         <el-form-item label="来源"><el-input v-model="capaForm.source" /></el-form-item>
         <el-form-item label="负责人"><UserSelect v-model="capaForm.owner" /></el-form-item>
-        <el-form-item label="状态"><el-select v-model="capaForm.status"><el-option label="待处理" value="待处理" /><el-option label="执行中" value="执行中" /><el-option label="已关闭" value="已关闭" /></el-select></el-form-item>
+        <el-form-item label="状态"><el-select v-model="capaForm.status"><el-option v-for="o in capaStatusOptions" :key="o.value" :label="o.label" :value="o.value" /></el-select></el-form-item>
         <el-form-item label="截止日期"><el-input v-model="capaForm.due_date" placeholder="YYYY-MM-DD" /></el-form-item>
         <el-form-item label="根因分析"><el-input v-model="capaForm.root_cause" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="纠正措施"><el-input v-model="capaForm.corrective_action" type="textarea" :rows="2" /></el-form-item>
@@ -156,7 +156,7 @@
         <el-form-item label="关联问题"><el-input v-model="reportForm.issue_nos" placeholder="多个用顿号分隔" /></el-form-item>
         <el-form-item label="关联 CAPA"><el-input v-model="reportForm.capa_nos" placeholder="多个用顿号分隔" /></el-form-item>
         <el-form-item label="负责人"><UserSelect v-model="reportForm.owner" /></el-form-item>
-        <el-form-item label="状态"><el-select v-model="reportForm.status"><el-option label="已归档" value="已归档" /><el-option label="草稿" value="草稿" /></el-select></el-form-item>
+        <el-form-item label="状态"><el-select v-model="reportForm.status"><el-option v-for="o in qualityReportStatusOptions" :key="o.value" :label="o.label" :value="o.value" /></el-select></el-form-item>
         <el-form-item label="摘要"><el-input v-model="reportForm.summary" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="根因分析"><el-input v-model="reportForm.root_cause" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="纠正措施"><el-input v-model="reportForm.corrective_action" type="textarea" :rows="2" /></el-form-item>
@@ -202,6 +202,11 @@ import {
 import { useAuth } from '../auth'
 import AttachmentPanel from '../components/AttachmentPanel.vue'
 import UserSelect from '../components/UserSelect.vue'
+import { useDictionary } from '../composables/useDictionary'
+
+const severityOptions = useDictionary('DICT_SEVERITY').options
+const capaStatusOptions = useDictionary('DICT_CAPA_STATUS').options
+const qualityReportStatusOptions = useDictionary('DICT_QUALITY_REPORT_STATUS').options
 
 const loading = ref(true)
 const { can, currentUser } = useAuth()

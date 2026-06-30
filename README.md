@@ -63,18 +63,26 @@ SEMIPLM_DATABASE_URL=sqlite:////data/semiplm.db
 
 ## 产品原则
 
-- 当前业务范围按单公司、单部门、单组织管理，不做多组织、多租户。
-- 研发数据必须真实可 CRUD，不能只做静态页面。
-- BOM、文档、产品、版本、变更、项目、质量之间要能互相追溯。
-- MES/ERP 对接先做配置、同步记录、字段映射、状态回写预留，不先做复杂工业 CAD/EDA 集成。
-- UI 以现有设计 BOM 等业务页的紧凑后台风格为参考，Element Plus 与 Arco 可在过渡期并存；不要为了迁移组件库破坏业务页密度和可用性。
+- 产品级规则以 `PRODUCT_SPEC.md` 为准，覆盖产品边界、业务对象、状态流转、主数据、权限、接口契约、页面交互、文件附件和集成队列。
+- 当前业务范围按单公司、单工厂、单组织管理；部门仅作为用户属性、流程路由和统计维度。
+- 研发数据必须真实可 CRUD，不能只做静态页面；BOM、文档、产品、版本、变更、项目、质量之间要能互相追溯。
+- MES/ERP/QMS 对接先做配置、同步队列、同步记录、状态回写预留，不先做复杂工业 CAD/EDA 集成。
+- UI 以紧凑商用后台风格为准，Element Plus 与 Arco 可在过渡期并存；不要为了迁移组件库破坏业务页密度和可用性。
 
-## 重要文档
+## 交接阅读顺序
 
-- `FUNCTION_LIST.md`：功能范围清单。
-- `PLM_BLUEPRINT.md`：产品蓝图。
-- `PLM_ARCHITECTURE.md`：架构设计。
-- `IMPLEMENTATION_ROADMAP.md`：开发路线与闭环标准。
+后续接手开发不要通读全仓，按以下顺序读文档：
+
+1. `PRODUCT_SPEC.md`：产品级通用规范和功能完成标准。
+2. `IMPLEMENTATION_ROADMAP.md`：当前基线和下一步计划。
+3. `FILE_INDEX.md`：按业务功能定位要读的后端 router、前端 api 和页面文件。
+4. `MENU_ARCHITECTURE.md`：确认菜单边界和功能归属。
+5. `FUNCTION_LIST.md`：确认能力范围、一期缺口和暂缓能力。
+
+需要理解产品方向时再读：
+
+- `PLM_BLUEPRINT.md`：产品蓝图和行业化原则。
+- `PLM_ARCHITECTURE.md`：架构边界和对象关系。
 - `ARCO_MIGRATION_PLAN.md`：UI 风格规范与页面密度约束。
 
 ## 当前验证

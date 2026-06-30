@@ -53,9 +53,9 @@
           <el-form-item label="产品型号"><el-input v-model="form.model" /></el-form-item>
           <el-form-item label="产品名称"><el-input v-model="form.name" /></el-form-item>
           <el-form-item label="产品类型"><el-input v-model="form.product_type" /></el-form-item>
-          <el-form-item label="工艺平台"><el-input v-model="form.process_platform" /></el-form-item>
-          <el-form-item label="晶圆尺寸"><el-input v-model="form.wafer_size" /></el-form-item>
-          <el-form-item label="封装形式"><el-input v-model="form.package_type" /></el-form-item>
+          <el-form-item label="工艺平台"><el-select v-model="form.process_platform"><el-option v-for="o in platformOptions" :key="o.value" :label="o.label" :value="o.value" /></el-select></el-form-item>
+          <el-form-item label="晶圆尺寸"><el-select v-model="form.wafer_size"><el-option v-for="o in waferSizeOptions" :key="o.value" :label="o.label" :value="o.value" /></el-select></el-form-item>
+          <el-form-item label="封装形式"><el-select v-model="form.package_type"><el-option v-for="o in packageOptions" :key="o.value" :label="o.label" :value="o.value" /></el-select></el-form-item>
           <el-form-item label="生命周期">
             <el-select v-model="form.lifecycle">
               <el-option v-for="item in lifecycles" :key="item" :label="item" :value="item" />
@@ -87,6 +87,7 @@ import { useRouter } from 'vue-router'
 import { createProduct, deleteProduct, getProducts, updateProduct } from '../api'
 import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
+import { useDictionary } from '../composables/useDictionary'
 
 const router = useRouter()
 const { can, currentUser, refreshSession } = useAuth()
@@ -96,7 +97,10 @@ const products = ref<any[]>([])
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
-const lifecycles = ['设计中', '流片', '验证', '试产', '量产', '冻结', '废止']
+const lifecycles = useDictionary('DICT_PRODUCT_LIFECYCLE').labels
+const platformOptions = useDictionary('DICT_PROCESS_PLATFORM').options
+const waferSizeOptions = useDictionary('DICT_WAFER_SIZE').options
+const packageOptions = useDictionary('DICT_PACKAGE_TYPE').options
 const emptyForm = {
   code: '',
   model: '',

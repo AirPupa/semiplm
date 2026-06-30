@@ -132,21 +132,24 @@
               <el-option v-for="product in products" :key="product.id" :label="product.model" :value="product.id" />
             </el-select>
           </el-form-item>
-          <el-form-item label="来源"><el-input v-model="form.source" /></el-form-item>
-          <el-form-item label="分类"><el-input v-model="form.category" /></el-form-item>
+          <el-form-item label="来源">
+            <el-select v-model="form.source" filterable>
+              <el-option v-for="o in requirementSourceOptions" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="分类">
+            <el-select v-model="form.category" filterable>
+              <el-option v-for="o in requirementCategoryOptions" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="优先级">
             <el-select v-model="form.priority">
-              <el-option label="高" value="高" />
-              <el-option label="中" value="中" />
-              <el-option label="低" value="低" />
+              <el-option v-for="o in priorityOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="form.status">
-              <el-option label="草稿" value="草稿" />
-              <el-option label="验证中" value="验证中" />
-              <el-option label="进行中" value="进行中" />
-              <el-option label="已确认" value="已确认" />
+              <el-option v-for="o in requirementStatusOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="负责人"><UserSelect v-model="form.owner" /></el-form-item>
@@ -171,8 +174,13 @@ import { useAuth } from '../auth'
 import AttachmentPanel from '../components/AttachmentPanel.vue'
 import UserSelect from '../components/UserSelect.vue'
 import { useListPage } from '../composables/useListPage'
+import { useDictionary } from '../composables/useDictionary'
 
 const { can, currentUser, refreshSession } = useAuth()
+const requirementSourceOptions = useDictionary('DICT_REQUIREMENT_SOURCE').options
+const requirementCategoryOptions = useDictionary('DICT_REQUIREMENT_CATEGORY').options
+const priorityOptions = useDictionary('DICT_PRIORITY').options
+const requirementStatusOptions = useDictionary('DICT_REQUIREMENT_STATUS').options
 const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getRequirements)
 const selected = ref<any>()
 const expandedRowKeys = ref<number[]>([])

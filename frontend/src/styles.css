@@ -358,7 +358,7 @@ select {
 .list-table-wrap {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .pagination-bar {
@@ -418,6 +418,162 @@ select {
   gap: 16px;
 }
 
+.workbench {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 82px);
+  padding: 0 16px 16px;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.wb-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 4px;
+}
+
+.wb-strip {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+}
+
+.wb-stat {
+  background: #fff;
+  border: 1px solid var(--semi-border, #e4e7ed);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wb-stat-label { font-size: 12px; color: #909399; }
+.wb-stat strong { font-size: 20px; line-height: 1.2; }
+
+.wb-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 12px;
+  overflow: auto;
+}
+
+.wb-main {
+  min-height: 320px;
+  height: 42%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.72fr);
+  gap: 12px;
+}
+
+.wb-focus-card,
+.wb-side > .wb-card,
+.wb-tabs-card {
+  min-height: 0;
+}
+
+.wb-side {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.wb-tabs-card {
+  flex: 1;
+  min-height: 320px;
+  overflow: hidden;
+}
+
+.wb-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wb-tabs > .el-tabs__content {
+  flex: 1;
+  min-height: 0;
+}
+
+.wb-tabs > .el-tabs__content > .el-tab-pane {
+  height: 100%;
+  min-height: 0;
+}
+
+.wb-calendar-pane {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wb-card {
+  background: #fff;
+  border: 1px solid var(--semi-border, #e4e7ed);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wb-card-wide { grid-column: 1 / -1; }
+
+.wb-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--semi-border, #e4e7ed);
+  background: #fafbfc;
+  flex-shrink: 0;
+}
+
+.wb-card .el-table { flex: 1; min-height: 0; }
+.wb-card .el-timeline { padding: 8px 12px; overflow: auto; flex: 1; }
+.wb-card .el-calendar { flex: 1; min-height: 0; overflow: auto; }
+
+.wb-cal-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.wb-cal-tag { font-size: 12px; }
+
+.wb-notify-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--semi-border, #e4e7ed);
+  background: #fff;
+  flex-wrap: wrap;
+}
+
+.wb-notify-stat { font-size: 12px; color: #606266; }
+
+.wb-stage-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage-list {
+  padding: 8px 12px;
+  overflow: auto;
+  flex: 1;
+}
+
 .chart {
   height: 280px;
 }
@@ -453,6 +609,29 @@ select {
 
 .table-actions-cell .cell {
   white-space: nowrap;
+}
+
+/* 所有固定右侧的列（通常是操作列）自动不换行 */
+.el-table__fixed-right .cell {
+  white-space: nowrap;
+}
+
+/* 表头可排序列：文字与排序图标保持在同一行 */
+.el-table__header th.el-table__cell > .cell {
+  white-space: nowrap;
+}
+.el-table__header .el-table__sort-icon {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+/* 展开行箭头始终可点击，不被 fixed 列覆盖 */
+.el-table__cell.el-table__expand-column {
+  pointer-events: auto;
+}
+.el-table__expand-icon {
+  cursor: pointer;
 }
 
 .row-actions {
@@ -783,8 +962,27 @@ select {
   gap: 0 14px;
 }
 
+.form-grid .el-form-item {
+  margin-bottom: 18px;
+}
+
 .form-grid .el-select,
+.form-grid .el-select .el-input,
+.form-grid .el-select .el-input__wrapper,
+.form-grid .el-input-number,
+.form-grid .el-date-editor.el-input,
+.form-grid .el-date-editor.el-input .el-input__wrapper,
+.form-grid .el-input,
+.form-grid .el-input .el-input__wrapper {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .form-grid .el-input-number {
+  width: 100%;
+}
+
+.form-grid .el-input-number .el-input__wrapper {
   width: 100%;
 }
 
@@ -815,8 +1013,22 @@ select {
   .metric-grid,
   .grid-2,
   .grid-main,
-  .detail-header {
+  .detail-header,
+  .wb-main {
     grid-template-columns: 1fr;
+  }
+
+  .wb-main {
+    height: auto;
+    min-height: 640px;
+  }
+
+  .wb-side {
+    grid-template-rows: repeat(2, minmax(260px, 1fr));
+  }
+
+  .wb-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .search {

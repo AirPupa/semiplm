@@ -13,7 +13,7 @@
       <a-menu
         class="nav-menu arco-nav"
         :selected-keys="[$route.path]"
-        :default-open-keys="['work', 'base', 'master', 'docs', 'bom', 'process', 'change', 'project', 'quality', 'integration', 'report']"
+        :default-open-keys="['work', 'base', 'product', 'docs', 'bom', 'process', 'change', 'project', 'quality', 'integration', 'report']"
         @menu-item-click="navigate"
       >
         <a-sub-menu v-for="group in visibleMenuGroups" :key="group.key">
@@ -36,16 +36,11 @@
           <a-button shape="circle"><template #icon><IconNotification /></template></a-button>
           <a-dropdown position="br">
             <a-button class="user-button">
-              <span class="top-avatar">
-                <img v-if="session?.user?.avatar_url" :src="session.user.avatar_url" alt="" />
-                <span v-else>{{ userInitial }}</span>
-              </span>
-              <span>{{ session?.user?.display_name || '系统管理员' }}</span>
+              <span class="user-name">{{ session?.user?.display_name || '系统用户' }}</span>
               <template #icon><IconDown /></template>
             </a-button>
             <template #content>
-              <a-doption disabled>{{ session?.role?.name || '系统管理员' }}</a-doption>
-              <a-doption @click="openProfileDialog">头像设置</a-doption>
+              <a-doption disabled>{{ session?.role?.name || '未分配角色' }}</a-doption>
               <a-doption @click="handleLogout">退出登录</a-doption>
             </template>
           </a-dropdown>
@@ -56,23 +51,6 @@
         <router-view />
       </a-layout-content>
     </a-layout>
-
-    <a-modal v-model:visible="profileDialogVisible" title="头像设置" width="520px" @ok="saveProfile">
-      <div class="profile-editor">
-        <div class="avatar-preview">
-          <img v-if="profileForm.avatar_url" :src="profileForm.avatar_url" alt="" />
-          <span v-else>{{ initials(profileForm.display_name) }}</span>
-        </div>
-        <a-form :model="profileForm" layout="vertical">
-          <a-form-item field="display_name" label="姓名">
-            <a-input v-model="profileForm.display_name" />
-          </a-form-item>
-          <a-form-item field="avatar_url" label="头像 URL">
-            <a-input v-model="profileForm.avatar_url" placeholder="https://..." allow-clear />
-          </a-form-item>
-        </a-form>
-      </div>
-    </a-modal>
   </a-layout>
 </template>
 
@@ -80,7 +58,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from './auth'
-import { Message } from '@arco-design/web-vue'
 import {
   IconBarChart as IconDashboard,
   IconBarChart as IconBarChart,
@@ -95,9 +72,7 @@ import {
 
 const router = useRouter()
 const collapsed = ref(false)
-const profileDialogVisible = ref(false)
-const profileForm = ref({ display_name: '', avatar_url: '' })
-const { can, logout, refreshSession, session, updateProfile } = useAuth()
+const { can, logout, refreshSession, session } = useAuth()
 
 const menuGroups = [
   {
@@ -111,24 +86,8 @@ const menuGroups = [
     ]
   },
   {
-    key: 'base',
-    title: '基础平台',
-    icon: IconSettings,
-    children: [
-      { path: '/admin/organizations', title: '组织管理', permission: 'organization' },
-      { path: '/admin/users', title: '用户管理', permission: 'user' },
-      { path: '/admin/roles', title: '角色管理', permission: 'role' },
-      { path: '/admin/coding-rules', title: '编码规则', permission: 'system' },
-      { path: '/admin/category-templates', title: '分类属性', permission: 'system' },
-      { path: '/admin/lifecycle-templates', title: '生命周期', permission: 'system' },
-      { path: '/admin/dictionaries', title: '数据字典', permission: 'system' },
-      { path: '/admin/system-parameters', title: '系统参数', permission: 'system' },
-      { path: '/admin/workflows', title: '流程配置', permission: 'workflow' }
-    ]
-  },
-  {
-    key: 'master',
-    title: '主数据中心',
+    key: 'product',
+    title: '产品中心',
     icon: IconLayers,
     children: [
       { path: '/products', title: '产品库', permission: 'product' },
@@ -140,7 +99,7 @@ const menuGroups = [
   },
   {
     key: 'docs',
-    title: '文档与资料',
+    title: '文档中心',
     icon: IconFolder,
     children: [
       { path: '/documents', title: '文档库', permission: 'document' }
@@ -170,7 +129,7 @@ const menuGroups = [
     icon: IconSync,
     children: [
       { path: '/problem-reports', title: 'PR 问题报告', permission: 'change' },
-      { path: '/changes', title: 'ECR 变更申请', permission: 'change' }
+      { path: '/changes', title: 'ECR/ECO/ECN', permission: 'change' }
     ]
   },
   {
@@ -206,6 +165,22 @@ const menuGroups = [
       { path: '/reports', title: '报表中心', permission: 'dashboard' },
       { path: '/admin/audit-logs', title: '操作日志', permission: 'system' }
     ]
+  },
+  {
+    key: 'base',
+    title: '基础平台',
+    icon: IconSettings,
+    children: [
+      { path: '/admin/users', title: '用户管理', permission: 'user' },
+      { path: '/admin/roles', title: '角色管理', permission: 'role' },
+      { path: '/admin/organizations', title: '组织管理', permission: 'organization' },
+      { path: '/admin/workflows', title: '流程配置', permission: 'workflow' },
+      { path: '/admin/coding-rules', title: '编码规则', permission: 'system' },
+      { path: '/admin/dictionaries', title: '数据字典', permission: 'system' },
+      { path: '/admin/lifecycle-templates', title: '生命周期', permission: 'system' },
+      { path: '/admin/category-templates', title: '分类属性', permission: 'system' },
+      { path: '/admin/system-parameters', title: '系统参数', permission: 'system' }
+    ]
   }
 ]
 
@@ -225,29 +200,9 @@ const currentGroup = computed(() => {
   }
   return ''
 })
-const userInitial = computed(() => initials(session.value?.user?.display_name || '系'))
-
-function initials(name: string) {
-  return (name || 'U').slice(0, 1)
-}
-
 async function loadSession() {
   if (!localStorage.getItem('semiplm.currentUser')) return
   await refreshSession()
-}
-
-function openProfileDialog() {
-  profileForm.value = {
-    display_name: session.value?.user?.display_name || '',
-    avatar_url: session.value?.user?.avatar_url || '',
-  }
-  profileDialogVisible.value = true
-}
-
-async function saveProfile() {
-  await updateProfile(profileForm.value)
-  Message.success('头像设置已保存')
-  profileDialogVisible.value = false
 }
 
 function handleLogout() {
@@ -273,43 +228,8 @@ watch(() => router.currentRoute.value.path, (path) => {
   gap: 8px;
 }
 
-.top-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: inline-grid;
-  place-items: center;
-  overflow: hidden;
-  background: #e8f4f8;
-  color: #1f6f8b;
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.top-avatar img,
-.avatar-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.profile-editor {
-  display: grid;
-  grid-template-columns: 96px 1fr;
-  gap: 20px;
-  align-items: start;
-}
-
-.avatar-preview {
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  background: #e8f4f8;
-  color: #1f6f8b;
-  font-size: 30px;
-  font-weight: 700;
+.user-name {
+  font-size: 14px;
+  font-weight: 500;
 }
 </style>

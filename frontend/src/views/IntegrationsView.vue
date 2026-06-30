@@ -43,15 +43,10 @@
       </div>
       <div class="integration-filters">
         <el-select v-model="filters.target_system" clearable placeholder="系统" size="small">
-          <el-option label="ERP" value="ERP" />
-          <el-option label="MES" value="MES" />
-          <el-option label="QMS" value="QMS" />
+          <el-option v-for="o in integrationSystemOptions" :key="o.value" :label="o.label" :value="o.value" />
         </el-select>
         <el-select v-model="filters.status" clearable placeholder="状态" size="small">
-          <el-option label="等待" value="等待" />
-          <el-option label="处理中" value="处理中" />
-          <el-option label="失败" value="失败" />
-          <el-option label="成功" value="成功" />
+          <el-option v-for="o in integrationStatusOptions" :key="o.value" :label="o.label" :value="o.value" />
         </el-select>
         <el-input v-model="filters.keyword" clearable placeholder="对象编号 / 型号 / 作业号" size="small" />
         <el-button size="small" type="primary" @click="load">查询</el-button>
@@ -103,11 +98,14 @@ import {
   startIntegrationJob,
 } from '../api'
 import { useAuth } from '../auth'
+import { useDictionary } from '../composables/useDictionary'
 
 const loading = ref(true)
 const actions = ref<any[]>([])
 const jobs = ref<any[]>([])
 const summary = ref<any>({})
+const integrationSystemOptions = useDictionary('DICT_INTEGRATION_SYSTEM').options
+const integrationStatusOptions = useDictionary('DICT_INTEGRATION_STATUS').options
 const filters = reactive({
   target_system: '',
   status: '',

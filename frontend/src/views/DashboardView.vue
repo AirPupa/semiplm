@@ -1,6 +1,5 @@
 <template>
-  <a-spin :loading="loading" dot>
-    <div class="arco-dashboard">
+  <div class="arco-dashboard" v-loading="loading" element-loading-text="加载中...">
       <section class="dashboard-head">
         <div>
           <span class="dashboard-kicker">R&D COMMAND CENTER</span>
@@ -101,11 +100,11 @@
         </a-col>
       </a-row>
     </div>
-  </a-spin>
 </template>
 
 <script setup lang="ts">
 import * as echarts from 'echarts'
+import { ElMessage } from 'element-plus'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getDashboard } from '../api'
 
@@ -340,8 +339,14 @@ function renderCharts() {
 
 async function reload() {
   loading.value = true
-  data.value = await getDashboard()
-  loading.value = false
+  try {
+    data.value = await getDashboard()
+  } catch (e: any) {
+    ElMessage.error('仪表盘数据加载失败')
+    data.value = {}
+  } finally {
+    loading.value = false
+  }
   await nextTick()
   renderCharts()
 }

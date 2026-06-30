@@ -53,29 +53,17 @@
           <el-form-item label="PR 编号"><el-input v-model="form.pr_no" placeholder="留空自动生成" /></el-form-item>
           <el-form-item label="问题类型">
             <el-select v-model="form.problem_type">
-              <el-option label="设计问题" value="设计问题" />
-              <el-option label="工艺问题" value="工艺问题" />
-              <el-option label="材料问题" value="材料问题" />
-              <el-option label="质量异常" value="质量异常" />
-              <el-option label="客户反馈" value="客户反馈" />
-              <el-option label="其他" value="其他" />
+              <el-option v-for="o in prTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="严重度">
             <el-select v-model="form.severity">
-              <el-option label="严重" value="严重" />
-              <el-option label="高" value="高" />
-              <el-option label="中" value="中" />
-              <el-option label="低" value="低" />
+              <el-option v-for="o in severityOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="来源">
             <el-select v-model="form.source">
-              <el-option label="内部" value="内部" />
-              <el-option label="客户" value="客户" />
-              <el-option label="供应商" value="供应商" />
-              <el-option label="质量" value="质量" />
-              <el-option label="生产" value="生产" />
+              <el-option v-for="o in prSourceOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="产品型号">
@@ -85,10 +73,7 @@
           </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="form.status">
-              <el-option label="新建" value="新建" />
-              <el-option label="评估中" value="评估中" />
-              <el-option label="待处理" value="待处理" />
-              <el-option label="已关闭" value="已关闭" />
+              <el-option v-for="o in prStatusOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="报告人"><UserSelect v-model="form.reporter" /></el-form-item>
@@ -115,6 +100,12 @@ import { createProblemReport, deleteProblemReport, getProblemReports, updateProb
 import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
 import { useListPage } from '../composables/useListPage'
+import { useDictionary } from '../composables/useDictionary'
+
+const prTypeOptions = useDictionary('DICT_PR_TYPE').options
+const severityOptions = useDictionary('DICT_SEVERITY').options
+const prSourceOptions = useDictionary('DICT_PR_SOURCE').options
+const prStatusOptions = useDictionary('DICT_PR_STATUS').options
 
 const { can, currentUser } = useAuth()
 const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getProblemReports)
