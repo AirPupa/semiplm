@@ -177,6 +177,9 @@ def ensure_lightweight_schema() -> None:
             "material_id": "INTEGER",
             "substitute_material_id": "INTEGER",
         },
+        "users": {
+            "avatar_url": "VARCHAR(500) DEFAULT ''",
+        },
     }
     with engine.begin() as conn:
         for table, table_columns in columns.items():
@@ -771,6 +774,7 @@ class UserPayload(BaseModel):
     display_name: str
     role: str
     department: str = "生产部"
+    avatar_url: str = ""
 
 
 class UserUpdatePayload(BaseModel):
@@ -778,6 +782,12 @@ class UserUpdatePayload(BaseModel):
     display_name: str | None = None
     role: str | None = None
     department: str | None = None
+    avatar_url: str | None = None
+
+
+class ProfileUpdatePayload(BaseModel):
+    display_name: str | None = None
+    avatar_url: str | None = None
 
 
 class RolePayload(BaseModel):
@@ -1289,6 +1299,17 @@ def commit_or_409(db: Session, message: str) -> None:
 
 def audit_log(db: Session, action: str, object_type: str, object_id: int | None, object_no: str, summary: str, operated_by: str) -> None:
     db.add(models.OperationLog(action=action, object_type=object_type, object_id=object_id, object_no=object_no, summary=summary, operated_by=operated_by, operated_at=today_text()))
+
+
+def user_dict(user: models.User) -> dict:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "role": user.role,
+        "department": user.department,
+        "avatar_url": user.avatar_url or "",
+    }
 
 
 def update_model(instance: object, payload: BaseModel) -> None:
@@ -2280,13 +2301,7 @@ def session_current(context: dict = Depends(current_user_context)) -> dict:
     role = context["role"]
     permissions = context["permissions"]
     return {
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "display_name": user.display_name,
-            "role": user.role,
-            "department": user.department,
-        },
+        "user": user_dict(user),
         "role": {
             "id": role.id if role else None,
             "code": role.code if role else "",
@@ -2297,6 +2312,25 @@ def session_current(context: dict = Depends(current_user_context)) -> dict:
         "permissions": permissions,
         "permission_labels": {key: PERMISSION_LABELS.get(key, key) for key in permissions},
     }
+
+
+@app.get("/api/session/login-users")
+def login_users(db: Session = Depends(get_db)) -> list[dict]:
+    rows = db.query(models.User).order_by(models.User.id).all()
+    return [user_dict(row) for row in rows]
+
+
+@app.put("/api/session/profile")
+def update_current_profile(payload: ProfileUpdatePayload, db: Session = Depends(get_db), context: dict = Depends(current_user_context)) -> dict:
+    user = context["user"]
+    if payload.display_name is not None:
+        user.display_name = payload.display_name
+    if payload.avatar_url is not None:
+        user.avatar_url = payload.avatar_url
+    audit_log(db, "更新个人资料", "User", user.id, user.username, "更新个人头像/姓名", user.display_name)
+    db.commit()
+    db.refresh(user)
+    return user_dict(user)
 
 
 @app.get("/api/admin/roles")
@@ -2658,7 +2692,7 @@ def users(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = D
     rows = q.order_by(models.User.id).offset((page - 1) * page_size).limit(page_size).all()
     return {
         "items": [
-            {"id": row.id, "username": row.username, "display_name": row.display_name, "role": row.role, "department": row.department}
+            user_dict(row)
             for row in rows
         ],
         "total": total,
@@ -2673,7 +2707,7 @@ def create_user(payload: UserPayload, db: Session = Depends(get_db), _: dict = D
     db.add(user)
     commit_or_409(db, "Username already exists")
     db.refresh(user)
-    return {"id": user.id, "username": user.username, "display_name": user.display_name, "role": user.role, "department": user.department}
+    return user_dict(user)
 
 
 @app.put("/api/admin/users/{user_id}")
@@ -2684,7 +2718,7 @@ def update_user(user_id: int, payload: UserUpdatePayload, db: Session = Depends(
     update_model(user, payload)
     commit_or_409(db, "Username already exists")
     db.refresh(user)
-    return {"id": user.id, "username": user.username, "display_name": user.display_name, "role": user.role, "department": user.department}
+    return user_dict(user)
 
 
 @app.delete("/api/admin/users/{user_id}")

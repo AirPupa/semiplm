@@ -6,13 +6,23 @@ const client = axios.create({
 })
 
 client.interceptors.request.use((config) => {
-  const username = localStorage.getItem('semiplm.currentUser') || 'admin'
-  config.headers['X-SemiPLM-User'] = username
+  const username = localStorage.getItem('semiplm.currentUser')
+  if (username) config.headers['X-SemiPLM-User'] = username
   return config
 })
 
 export async function getCurrentSession() {
   const { data } = await client.get('/api/session/current')
+  return data
+}
+
+export async function getLoginUsers() {
+  const { data } = await client.get('/api/session/login-users')
+  return data
+}
+
+export async function updateCurrentProfile(payload: { display_name?: string; avatar_url?: string }) {
+  const { data } = await client.put('/api/session/profile', payload)
   return data
 }
 

@@ -329,5 +329,6 @@
 - 已完成：附件权限/审计细化第一轮。通用附件 API 按对象类型映射业务权限（BOM/变更/项目/文档/需求/质量），未知对象类型拒绝；附件列表必须指定对象类型，避免全库泄漏；上传/下载/删除记录操作日志，并使用当前用户作为上传人/操作人。
 - 已完成：编码规则独立页。新增 `CodingRulesView.vue` 和 `/admin/coding-rules` 路由/菜单，按列表页标准支持服务端搜索、分页、新增、编辑、删除；FoundationConfigView 移除编码规则 tab，仅保留分类属性、生命周期、数据字典。
 - 已完成：分类属性独立页。新增 `CategoryTemplatesView.vue` 和 `/admin/category-templates` 路由/菜单，支持分类模板分页/搜索/CRUD，并在行展开中维护属性模板新增、编辑、删除；FoundationConfigView 移除分类属性 tab，仅保留生命周期、数据字典。
+- 已完成：登录页与头像设置第一轮。新增 `/login` 公开路由和登录页，进入系统前需选择用户登录；前端路由守卫基于本地当前用户判断登录态，退出登录后回到登录页；User 模型新增 `avatar_url` 字段并通过轻量迁移补齐，`/api/session/current` 返回头像，新增 `/api/session/login-users` 和 `/api/session/profile`；右上角显示用户头像并支持头像 URL/姓名设置，用户管理页支持查看和编辑头像 URL。
 - 下一步：继续拆基础配置中的生命周期、数据字典为独立页；报表快照后续可接真实后台定时任务。
 

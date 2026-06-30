@@ -12,6 +12,14 @@
     </div>
     <div class="um-table-wrap">
       <el-table :data="users" height="100%">
+        <el-table-column label="头像" width="70" fixed>
+          <template #default="{ row }">
+            <span class="user-avatar">
+              <img v-if="row.avatar_url" :src="row.avatar_url" alt="" />
+              <span v-else>{{ (row.display_name || row.username || 'U').slice(0, 1) }}</span>
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column prop="username" label="账号" width="140" fixed />
         <el-table-column prop="display_name" label="姓名" width="120" />
         <el-table-column prop="role" label="角色" width="160" />
@@ -41,6 +49,7 @@
         <div class="form-grid">
           <el-form-item label="账号"><el-input v-model="form.username" /></el-form-item>
           <el-form-item label="姓名"><el-input v-model="form.display_name" /></el-form-item>
+          <el-form-item label="头像URL"><el-input v-model="form.avatar_url" /></el-form-item>
           <el-form-item label="角色">
             <el-select v-model="form.role">
               <el-option v-for="role in roles" :key="role.id" :label="role.name" :value="role.name" />
@@ -75,7 +84,7 @@ const users = ref<any[]>([])
 const roles = ref<any[]>([])
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
-const emptyForm = { username: '', display_name: '', role: '', department: '生产部' }
+const emptyForm = { username: '', display_name: '', role: '', department: '生产部', avatar_url: '' }
 const form = ref<any>({ ...emptyForm })
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
 
@@ -141,5 +150,21 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   padding: 12px 0 0;
+}
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  background: #e8f4f8;
+  color: #1f6f8b;
+  font-weight: 600;
+}
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 </style>

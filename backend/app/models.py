@@ -13,6 +13,7 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(80))
     role: Mapped[str] = mapped_column(String(40))
     department: Mapped[str] = mapped_column(String(80), default="生产部")
+    avatar_url: Mapped[str] = mapped_column(String(500), default="")
 
 
 class Role(Base):

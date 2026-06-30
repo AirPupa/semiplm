@@ -4,6 +4,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', redirect: '/dashboard' },
+    { path: '/login', component: () => import('./views/LoginView.vue'), meta: { title: '登录', public: true } },
     { path: '/dashboard', component: () => import('./views/DashboardView.vue'), meta: { title: '研发驾驶舱' } },
     { path: '/workbench', component: () => import('./views/WorkbenchView.vue'), meta: { title: '我的待办' } },
     { path: '/closure-check', component: () => import('./views/ClosureCheckView.vue'), meta: { title: '闭环验证' } },
@@ -36,6 +37,13 @@ const router = createRouter({
     { path: '/admin/audit-logs', component: () => import('./views/AuditLogView.vue'), meta: { title: '操作日志' } },
     { path: '/reports', component: () => import('./views/ReportsView.vue'), meta: { title: '报表中心' } }
   ]
+})
+
+router.beforeEach((to) => {
+  const loggedIn = !!localStorage.getItem('semiplm.currentUser')
+  if (!to.meta.public && !loggedIn) return '/login'
+  if (to.path === '/login' && loggedIn) return '/dashboard'
+  return true
 })
 
 export default router

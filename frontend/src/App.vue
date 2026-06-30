@@ -1,5 +1,6 @@
 <template>
-  <a-layout class="app-shell arco-shell">
+  <router-view v-if="$route.meta.public" />
+  <a-layout v-else class="app-shell arco-shell">
     <a-layout-sider class="sidebar arco-sidebar" :width="212" collapsible :collapsed="collapsed" @collapse="collapsed = $event">
       <div class="brand" :class="{ collapsed }">
         <div class="brand-mark">S</div>
@@ -34,13 +35,20 @@
           <a-input-search class="search" placeholder="输入内容查询" allow-clear />
           <a-button shape="circle"><template #icon><IconNotification /></template></a-button>
           <a-dropdown position="br">
-            <a-button>
-              {{ session?.user?.display_name || '系统管理员' }}
+            <a-button class="user-button">
+              <span class="top-avatar">
+                <img v-if="session?.user?.avatar_url" :src="session.user.avatar_url" alt="" />
+                <span v-else>{{ userInitial }}</span>
+              </span>
+              <span>{{ session?.user?.display_name || '系统管理员' }}</span>
               <template #icon><IconDown /></template>
             </a-button>
             <template #content>
               <a-doption disabled>{{ session?.role?.name || '系统管理员' }}</a-doption>
-              <a-doption v-for="user in users" :key="user.id" @click="switchUser(user.username)">
+              <a-doption @click="openProfileDialog">头像设置</a-doption>
+              <a-doption @click="handleLogout">退出登录</a-doption>
+              <a-doption v-if="can('user')" disabled>切换账号</a-doption>
+              <a-doption v-for="user in switchableUsers" :key="user.id" @click="switchUser(user.username)">
                 切换：{{ user.display_name }}
               </a-doption>
             </template>
@@ -52,14 +60,32 @@
         <router-view />
       </a-layout-content>
     </a-layout>
+
+    <a-modal v-model:visible="profileDialogVisible" title="头像设置" width="520px" @ok="saveProfile">
+      <div class="profile-editor">
+        <div class="avatar-preview">
+          <img v-if="profileForm.avatar_url" :src="profileForm.avatar_url" alt="" />
+          <span v-else>{{ initials(profileForm.display_name) }}</span>
+        </div>
+        <a-form :model="profileForm" layout="vertical">
+          <a-form-item field="display_name" label="姓名">
+            <a-input v-model="profileForm.display_name" />
+          </a-form-item>
+          <a-form-item field="avatar_url" label="头像 URL">
+            <a-input v-model="profileForm.avatar_url" placeholder="https://..." allow-clear />
+          </a-form-item>
+        </a-form>
+      </div>
+    </a-modal>
   </a-layout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getAdminUsers } from './api'
 import { useAuth } from './auth'
+import { Message } from '@arco-design/web-vue'
 import {
   IconBarChart as IconDashboard,
   IconBarChart as IconBarChart,
@@ -75,7 +101,9 @@ import {
 const router = useRouter()
 const collapsed = ref(false)
 const users = ref<any[]>([])
-const { can, refreshSession, session, setCurrentUser } = useAuth()
+const profileDialogVisible = ref(false)
+const profileForm = ref({ display_name: '', avatar_url: '' })
+const { can, logout, refreshSession, session, setCurrentUser, updateProfile } = useAuth()
 
 const menuGroups = [
   {
@@ -202,9 +230,21 @@ const currentGroup = computed(() => {
   }
   return ''
 })
+const switchableUsers = computed(() => users.value.filter((user) => user.username !== session.value?.user?.username))
+const userInitial = computed(() => initials(session.value?.user?.display_name || '系'))
+
+function initials(name: string) {
+  return (name || 'U').slice(0, 1)
+}
 
 async function loadSession() {
-  const [, userRes] = await Promise.all([refreshSession(), getAdminUsers()])
+  if (!localStorage.getItem('semiplm.currentUser')) return
+  await refreshSession()
+  if (!can('user')) {
+    users.value = []
+    return
+  }
+  const userRes = await getAdminUsers()
   users.value = userRes.items ?? userRes
 }
 
@@ -217,9 +257,80 @@ async function switchUser(username: string) {
   }
 }
 
+function openProfileDialog() {
+  profileForm.value = {
+    display_name: session.value?.user?.display_name || '',
+    avatar_url: session.value?.user?.avatar_url || '',
+  }
+  profileDialogVisible.value = true
+}
+
+async function saveProfile() {
+  await updateProfile(profileForm.value)
+  Message.success('头像设置已保存')
+  profileDialogVisible.value = false
+}
+
+function handleLogout() {
+  logout()
+  router.replace('/login')
+}
+
 function navigate(path: string) {
   if (path !== router.currentRoute.value.path) router.push(path)
 }
 
 onMounted(loadSession)
+
+watch(() => router.currentRoute.value.path, (path) => {
+  if (path !== '/login') loadSession()
+})
 </script>
+
+<style scoped>
+.user-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  background: #e8f4f8;
+  color: #1f6f8b;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.top-avatar img,
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-editor {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.avatar-preview {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #e8f4f8;
+  color: #1f6f8b;
+  font-size: 30px;
+  font-weight: 700;
+}
+</style>
