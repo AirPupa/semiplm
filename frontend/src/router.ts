@@ -28,6 +28,7 @@ const router = createRouter({
     { path: '/admin/users', component: () => import('./views/UserManagementView.vue'), meta: { title: '用户管理' } },
     { path: '/admin/roles', component: () => import('./views/RoleManagementView.vue'), meta: { title: '角色管理' } },
     { path: '/admin/foundation', component: () => import('./views/FoundationConfigView.vue'), meta: { title: '基础配置' } },
+    { path: '/admin/system-parameters', component: () => import('./views/SystemParametersView.vue'), meta: { title: '系统参数' } },
     { path: '/admin/workflows', component: () => import('./views/WorkflowConfigView.vue'), meta: { title: '流程配置' } },
     { path: '/admin/integrations', component: () => import('./views/IntegrationConfigView.vue'), meta: { title: '接口端点' } },
     { path: '/admin/audit-logs', component: () => import('./views/AuditLogView.vue'), meta: { title: '操作日志' } },

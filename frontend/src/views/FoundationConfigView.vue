@@ -127,21 +127,6 @@
           </el-table-column>
         </el-table>
       </el-tab-pane>
-
-      <el-tab-pane label="系统参数" name="params">
-        <el-table :data="systemParams" height="620">
-          <el-table-column prop="param_key" label="键" width="180" />
-          <el-table-column prop="param_value" label="值" min-width="220" />
-          <el-table-column prop="param_group" label="分组" width="100" />
-          <el-table-column prop="description" label="说明" min-width="260" />
-          <el-table-column label="操作" width="150" fixed="right">
-            <template #default="{ row }">
-              <el-button size="small" @click="openEdit(row)">编辑</el-button>
-              <el-button size="small" type="danger" @click="removeMain(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-tab-pane>
     </el-tabs>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="760px">
@@ -172,12 +157,6 @@
             <el-form-item label="模板名称"><el-input v-model="form.name" /></el-form-item>
             <el-form-item label="对象"><el-input v-model="form.object_type" /></el-form-item>
             <el-form-item label="状态"><el-select v-model="form.status"><el-option label="启用" value="启用" /><el-option label="停用" value="停用" /></el-select></el-form-item>
-            <el-form-item label="说明"><el-input v-model="form.description" /></el-form-item>
-          </template>
-          <template v-else-if="activeTab === 'params'">
-            <el-form-item label="键"><el-input v-model="form.param_key" /></el-form-item>
-            <el-form-item label="值"><el-input v-model="form.param_value" /></el-form-item>
-            <el-form-item label="分组"><el-input v-model="form.param_group" /></el-form-item>
             <el-form-item label="说明"><el-input v-model="form.description" /></el-form-item>
           </template>
           <template v-else>
@@ -238,26 +217,22 @@ import {
   createDictionaryItem,
   createLifecycleState,
   createLifecycleTemplate,
-  createSystemParameter,
   deleteAttributeTemplate,
   deleteCategoryTemplate,
   deleteCodingRule,
   deleteDictionaryItem,
   deleteLifecycleState,
   deleteLifecycleTemplate,
-  deleteSystemParameter,
   getCategoryTemplates,
   getCodingRules,
   getDictionaryItems,
   getLifecycleTemplates,
-  getSystemParameters,
   updateAttributeTemplate,
   updateCategoryTemplate,
   updateCodingRule,
   updateDictionaryItem,
   updateLifecycleState,
   updateLifecycleTemplate,
-  updateSystemParameter,
 } from '../api'
 
 const loading = ref(true)
@@ -266,7 +241,6 @@ const codingRules = ref<any[]>([])
 const categories = ref<any[]>([])
 const lifecycles = ref<any[]>([])
 const dictionaryItems = ref<any[]>([])
-const systemParams = ref<any[]>([])
 const dialogVisible = ref(false)
 const childDialogVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -277,28 +251,25 @@ const childForm = ref<any>({})
 
 const dialogTitle = computed(() => `${editingId.value ? '编辑' : '新增'}${tabName.value}`)
 const childDialogTitle = computed(() => `${childEditingId.value ? '编辑' : '新增'}${activeTab.value === 'category' ? '属性' : '状态'}`)
-const tabName = computed(() => ({ coding: '编码规则', category: '分类模板', lifecycle: '生命周期', dictionary: '字典项', params: '系统参数' }[activeTab.value] || '配置'))
+const tabName = computed(() => ({ coding: '编码规则', category: '分类模板', lifecycle: '生命周期', dictionary: '字典项' }[activeTab.value] || '配置'))
 
 async function loadRows() {
-  const [rules, categoryRows, lifecycleRows, dictionaries, params] = await Promise.all([
+  const [rules, categoryRows, lifecycleRows, dictionaries] = await Promise.all([
     getCodingRules({ page: 1, page_size: 1000 }),
     getCategoryTemplates({ page: 1, page_size: 1000 }),
     getLifecycleTemplates({ page: 1, page_size: 1000 }),
     getDictionaryItems({ page: 1, page_size: 1000 }),
-    getSystemParameters({ page: 1, page_size: 1000 }),
   ])
   codingRules.value = rules.items ?? rules
   categories.value = categoryRows.items ?? categoryRows
   lifecycles.value = lifecycleRows.items ?? lifecycleRows
   dictionaryItems.value = dictionaries.items ?? dictionaries
-  systemParams.value = params.items ?? params
 }
 
 function emptyMainForm() {
   if (activeTab.value === 'coding') return { object_type: '', code: '', name: '', prefix: '', pattern: '', current_no: 0, sample: '', status: '启用', owner: '' }
   if (activeTab.value === 'category') return { object_type: '', code: '', name: '', parent_code: '', lifecycle_template: '', coding_rule: '', status: '启用', description: '' }
   if (activeTab.value === 'lifecycle') return { code: '', name: '', object_type: '', status: '启用', description: '' }
-  if (activeTab.value === 'params') return { param_key: '', param_value: '', param_group: '系统', description: '' }
   return { dict_code: '', dict_name: '', item_value: '', item_label: '', object_scope: '', sequence: 1, status: '启用' }
 }
 
@@ -326,7 +297,6 @@ async function saveMain() {
   if (activeTab.value === 'category') editingId.value ? await updateCategoryTemplate(editingId.value, form.value) : await createCategoryTemplate(form.value)
   if (activeTab.value === 'lifecycle') editingId.value ? await updateLifecycleTemplate(editingId.value, form.value) : await createLifecycleTemplate(form.value)
   if (activeTab.value === 'dictionary') editingId.value ? await updateDictionaryItem(editingId.value, form.value) : await createDictionaryItem(form.value)
-  if (activeTab.value === 'params') editingId.value ? await updateSystemParameter(editingId.value, form.value) : await createSystemParameter(form.value)
   ElMessage.success('配置已保存')
   dialogVisible.value = false
   await loadRows()
@@ -338,7 +308,6 @@ async function removeMain(row: any) {
   if (activeTab.value === 'category') await deleteCategoryTemplate(row.id)
   if (activeTab.value === 'lifecycle') await deleteLifecycleTemplate(row.id)
   if (activeTab.value === 'dictionary') await deleteDictionaryItem(row.id)
-  if (activeTab.value === 'params') await deleteSystemParameter(row.id)
   ElMessage.success('配置已删除')
   await loadRows()
 }

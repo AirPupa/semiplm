@@ -323,5 +323,6 @@
 - 已完成：闭环验证数据治理——补齐 4 个产品项目+质量数据。seed.py 为 VCSEL-940-3W、DFB-1310-25G、LED-MICRO-RGB、SiPh-MZM-400G 各新增独立 NPI 项目（项目编号 NPI-2026-062~065），每个项目含 5 条任务（覆盖设计/流片/验证/试产/量产导入阶段）、1~2 条风险、1~2 条交付物；VCSEL/DFB/SiPh 各新增 1 条质量问题（与已有 PR 问题报告呼应），5 个产品全部有项目和质量数据，闭环验证矩阵不再有项目断点。
 - 已完成：报表深化第一轮。4 个核心报表补齐 Excel 导出接口（`/api/reports/completeness/export`、`/api/reports/change-cycle/export`、`/api/reports/project-progress/export`、`/api/reports/quality-closure/export`），前端 ReportsView 每个 tab 增加“导出 Excel”按钮；质量闭环报表增加 CP/FT 良率趋势 SVG 折线图，复用后端已有 `quality_trend` 数据，不额外引入图表依赖。
 - 已完成：文件存储落地第一轮。新增通用 Attachment 模型与附件 API（列表、上传、下载、删除），文件落盘到后端 `data/files`；新增通用 `AttachmentPanel.vue` 组件，并接入 BOM、工程变更、项目管理展开详情区，业务对象可直接挂载附件元数据和文件下载。
-- 下一步：系统参数独立页、报表定时快照；附件能力后续继续接入文档、需求、质量等对象，并补充权限/审计细化。
+- 已完成：系统参数独立页。后端系统参数列表搜索扩展到参数键/值/分组/说明；前端从 FoundationConfigView 拆出 `SystemParametersView.vue`，新增 `/admin/system-parameters` 路由和基础平台菜单入口，按列表页标准支持服务端搜索、分页、新增、编辑、删除。FoundationConfigView 仅保留编码规则、分类属性、生命周期、数据字典，减少“大配置页”混杂。
+- 下一步：报表定时快照；附件能力后续继续接入文档、需求、质量等对象，并补充权限/审计细化。
 

@@ -5404,7 +5404,12 @@ def system_parameters(page: int = 1, page_size: int = 20, keyword: str = "", db:
     q = db.query(models.SystemParameter)
     if keyword:
         kw = f"%{keyword}%"
-        q = q.filter(models.SystemParameter.param_key.ilike(kw) | models.SystemParameter.param_group.ilike(kw))
+        q = q.filter(
+            models.SystemParameter.param_key.ilike(kw)
+            | models.SystemParameter.param_value.ilike(kw)
+            | models.SystemParameter.param_group.ilike(kw)
+            | models.SystemParameter.description.ilike(kw)
+        )
     total = q.count()
     rows = q.order_by(models.SystemParameter.param_group, models.SystemParameter.id).offset((page - 1) * page_size).limit(page_size).all()
     return {

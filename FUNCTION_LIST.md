@@ -119,5 +119,6 @@
 - 已完成权限配置独立化第一步：RoleManagementView 权限字段从文本输入改为 19 项 checkbox-group，列表权限列改为 tag 展示。
 - 已完成闭环验证数据治理：seed.py 补齐 4 个产品（VCSEL/DFB/LED/SiPh）项目+质量数据，5 个产品全部有项目和质量数据。
 - 已完成文件存储落地第一轮：新增通用附件模型、上传/下载/删除 API 和 AttachmentPanel 组件，已接入 BOM、工程变更、项目管理详情区。
-- 下一步：系统参数独立页、报表定时快照；附件继续接入更多业务对象并补权限/审计细化。
+- 已完成系统参数独立页：新增 `/admin/system-parameters` 菜单和 `SystemParametersView.vue`，系统参数从基础配置 tab 拆出，支持分页、搜索和 CRUD。
+- 下一步：报表定时快照；附件继续接入更多业务对象并补权限/审计细化。
 
