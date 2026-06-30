@@ -292,6 +292,143 @@ def seed_database(db: Session) -> None:
         root_cause="初步定位为刻蚀后侧壁残留与钝化膜覆盖不足共同影响。",
         corrective_action="调整 ICP 清洗步骤和 PECVD 钝化膜厚，受影响 Wafer 追加 LIV/暗电流复测。",
     ))
+
+    # ---- VCSEL-940-3W 项目 ----
+    vcsel_proj = models.Project(
+        project_no="NPI-2026-062",
+        name="940nm VCSEL 阵列量产导入项目",
+        product_model="VCSEL-940-3W",
+        phase="量产导入",
+        progress=82,
+        owner="房磊",
+        start_date="2026-01-15",
+        end_date="2026-08-30",
+        risk_level="低",
+    )
+    db.add(vcsel_proj)
+    db.flush()
+    for task in [
+        ("外延片规格确认", "设计", "张昊", "已完成", date(2026, 2, 20)),
+        ("光刻工艺 DOE", "流片", "张昊", "已完成", date(2026, 3, 25)),
+        ("Wafer Map 良率验证", "验证", "罗富森", "已完成", date(2026, 5, 10)),
+        ("量产 CD SPC 管控部署", "试产", "罗富森", "进行中", date(2026, 7, 5)),
+        ("客户可靠性认定", "量产导入", "房磊", "未开始", date(2026, 8, 20)),
+    ]:
+        db.add(models.ProjectTask(project_id=vcsel_proj.id, name=task[0], phase=task[1], owner=task[2], status=task[3], due_date=task[4]))
+    db.add(models.ProjectRisk(project_id=vcsel_proj.id, risk_type="工艺风险", description="6 inch 晶圆 CD 均匀性波动可能影响阵列一致性", impact="中", probability="中", severity="中", owner="罗富森", status="监控中", mitigation="增加边缘 CD 监测频次，SPC 管控曝光剂量"))
+    db.add(models.ProjectDeliverable(project_id=vcsel_proj.id, name="VCSEL 阵列工艺规格书", deliverable_type="工艺文件", phase="试产", owner="张昊", status="已完成", due_date="2026-05-15", completed_at="2026-05-12"))
+    db.add(models.ProjectDeliverable(project_id=vcsel_proj.id, name="量产 Wafer Map 良率报告", deliverable_type="测试报告", phase="量产导入", owner="罗富森", status="进行中", due_date="2026-07-20"))
+    db.add(models.QualityIssue(
+        issue_no="QIR-2026-0043",
+        product_model="VCSEL-940-3W",
+        lot_no="LOT-VCSEL-940-2602",
+        title="光刻 CD 均匀性波动",
+        severity="中",
+        status="处理中",
+        owner="罗富森",
+        root_cause="6 inch 晶圆中心与边缘 CD 差异偏大，曝光剂量分布不均。",
+        corrective_action="优化光刻曝光剂量分布和显影时间 SPC 管控，增加边缘 CD 监测频次。",
+    ))
+
+    # ---- DFB-1310-25G 项目 ----
+    dfb_proj = models.Project(
+        project_no="NPI-2026-063",
+        name="1310nm DFB 激光器验证项目",
+        product_model="DFB-1310-25G",
+        phase="验证",
+        progress=45,
+        owner="于帅兵",
+        start_date="2026-02-10",
+        end_date="2026-10-15",
+        risk_level="中",
+    )
+    db.add(dfb_proj)
+    db.flush()
+    for task in [
+        ("DFB 光栅设计冻结", "设计", "于帅兵", "已完成", date(2026, 3, 15)),
+        ("首批流片与晶圆测试", "流片", "于帅兵", "已完成", date(2026, 4, 30)),
+        ("封装耦合效率优化", "验证", "于帅兵", "进行中", date(2026, 7, 18)),
+        ("高温老化可靠性验证", "验证", "罗富森", "未开始", date(2026, 8, 30)),
+        ("客户样品提交", "试产", "房磊", "未开始", date(2026, 9, 20)),
+    ]:
+        db.add(models.ProjectTask(project_id=dfb_proj.id, name=task[0], phase=task[1], owner=task[2], status=task[3], due_date=task[4]))
+    db.add(models.ProjectRisk(project_id=dfb_proj.id, risk_type="质量风险", description="客户反馈封装耦合功率下降，需排查对准精度", impact="高", probability="中", severity="高", owner="于帅兵", status="处理中", mitigation="核查封装工艺对准精度和点胶量，重新校准耦合台"))
+    db.add(models.ProjectDeliverable(project_id=dfb_proj.id, name="DFB 激光器设计报告", deliverable_type="设计文件", phase="设计", owner="于帅兵", status="已完成", due_date="2026-03-20", completed_at="2026-03-18"))
+    db.add(models.ProjectDeliverable(project_id=dfb_proj.id, name="耦合效率分析报告", deliverable_type="测试报告", phase="验证", owner="于帅兵", status="进行中", due_date="2026-07-25"))
+    db.add(models.QualityIssue(
+        issue_no="QIR-2026-0044",
+        product_model="DFB-1310-25G",
+        lot_no="LOT-DFB-1310-2604",
+        title="封装耦合效率下降",
+        severity="中",
+        status="处理中",
+        owner="于帅兵",
+        root_cause="客户反馈最近一批耦合功率较前批下降约 8%，怀疑光纤耦合对准偏差或 Die attach 位置漂移。",
+        corrective_action="核查封装工艺对准精度和点胶量，重新校准耦合台。",
+    ))
+
+    # ---- LED-MICRO-RGB 项目 ----
+    led_proj = models.Project(
+        project_no="NPI-2026-064",
+        name="Micro LED RGB 外延片设计项目",
+        product_model="LED-MICRO-RGB",
+        phase="设计",
+        progress=25,
+        owner="张昊",
+        start_date="2026-03-01",
+        end_date="2026-12-30",
+        risk_level="高",
+    )
+    db.add(led_proj)
+    db.flush()
+    for task in [
+        ("RGB 三色外延方案设计", "概念", "张昊", "已完成", date(2026, 4, 10)),
+        ("GaN 外延工艺参数 DOE", "设计", "张昊", "进行中", date(2026, 7, 15)),
+        ("Micro LED 像素阵列设计", "设计", "梁伟伟", "未开始", date(2026, 8, 20)),
+        ("首轮流片与光电测试", "流片", "梁伟伟", "未开始", date(2026, 10, 15)),
+        ("微显示应用验证", "验证", "房磊", "未开始", date(2026, 12, 1)),
+    ]:
+        db.add(models.ProjectTask(project_id=led_proj.id, name=task[0], phase=task[1], owner=task[2], status=task[3], due_date=task[4]))
+    db.add(models.ProjectRisk(project_id=led_proj.id, risk_type="技术风险", description="GaN on Sapphire 外延位错密度可能影响 Micro LED 发光效率", impact="高", probability="中", severity="高", owner="张昊", status="评估中", mitigation="优化缓冲层结构和退火工艺，增加位错密度监测"))
+    db.add(models.ProjectDeliverable(project_id=led_proj.id, name="RGB 外延方案设计书", deliverable_type="设计文件", phase="概念", owner="张昊", status="已完成", due_date="2026-04-15", completed_at="2026-04-12"))
+    db.add(models.ProjectDeliverable(project_id=led_proj.id, name="GaN 外延工艺参数表", deliverable_type="工艺文件", phase="设计", owner="张昊", status="进行中", due_date="2026-07-20"))
+
+    # ---- SiPh-MZM-400G 项目 ----
+    siph_proj = models.Project(
+        project_no="NPI-2026-065",
+        name="400G 硅光调制器流片项目",
+        product_model="SiPh-MZM-400G",
+        phase="流片",
+        progress=38,
+        owner="张昊",
+        start_date="2026-01-20",
+        end_date="2026-11-15",
+        risk_level="高",
+    )
+    db.add(siph_proj)
+    db.flush()
+    for task in [
+        ("MZM 调制器结构仿真", "设计", "张昊", "已完成", date(2026, 2, 28)),
+        ("SOI 流片版图设计", "设计", "张昊", "已完成", date(2026, 3, 25)),
+        ("首轮 MPW 流片", "流片", "梁伟伟", "已完成", date(2026, 5, 15)),
+        ("波导损耗 SEM 分析", "验证", "张昊", "进行中", date(2026, 7, 10)),
+        ("刻蚀工艺优化与第二轮流片", "流片", "梁伟伟", "未开始", date(2026, 9, 20)),
+    ]:
+        db.add(models.ProjectTask(project_id=siph_proj.id, name=task[0], phase=task[1], owner=task[2], status=task[3], due_date=task[4]))
+    db.add(models.ProjectRisk(project_id=siph_proj.id, risk_type="技术风险", description="流片后波导插损高于仿真预期，刻蚀粗糙度需优化", impact="高", probability="高", severity="高", owner="张昊", status="处理中", mitigation="对比仿真与实测 SEM 截面，调整刻蚀气体配比和压力"))
+    db.add(models.ProjectDeliverable(project_id=siph_proj.id, name="MZM 调制器仿真报告", deliverable_type="设计文件", phase="设计", owner="张昊", status="已完成", due_date="2026-03-05", completed_at="2026-03-03"))
+    db.add(models.ProjectDeliverable(project_id=siph_proj.id, name="首轮流片测试报告", deliverable_type="测试报告", phase="流片", owner="张昊", status="进行中", due_date="2026-07-15"))
+    db.add(models.QualityIssue(
+        issue_no="QIR-2026-0045",
+        product_model="SiPh-MZM-400G",
+        lot_no="LOT-SIPH-MZM-2601",
+        title="流片后波导损耗偏大",
+        severity="高",
+        status="处理中",
+        owner="张昊",
+        root_cause="流片回来测试发现条波导插损高于仿真预期 0.5dB/cm，疑似刻蚀粗糙度或侧壁角偏差。",
+        corrective_action="对比仿真与实测 SEM 截面，调整刻蚀气体配比和压力。",
+    ))
     seed_commercial_plm_data(db, product_entities)
     seed_product_versions(db, product_entities)
     seed_change_execution_data(db)

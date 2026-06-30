@@ -1,94 +1,97 @@
 <template>
-  <div class="grid-main" v-loading="loading">
-    <div class="panel list-panel">
-      <div class="toolbar">
-        <div>
-          <strong>BOM 对象管理</strong>
-          <span class="muted"> · 表头、结构明细、审核发布与 ERP 下发联动</span>
-        </div>
-        <div class="toolbar-actions">
-          <el-input v-model="keyword" placeholder="搜索产品型号/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
-          <el-button v-if="can('bom')" :disabled="!selected" @click="openTransform">转 PBOM/MBOM</el-button>
-          <el-button :disabled="!selected" @click="openCompare">BOM 比较</el-button>
-          <el-button v-if="can('bom')" type="primary" :icon="Plus" @click="openBomCreate">新建 BOM</el-button>
-        </div>
+  <div class="panel list-panel" v-loading="loading">
+    <div class="toolbar">
+      <div>
+        <strong>BOM 对象管理</strong>
       </div>
-      <div class="list-table-wrap">
-      <el-table :data="items" highlight-current-row @current-change="selectBom" height="100%">
-        <el-table-column prop="product_model" label="产品型号" width="130" fixed />
-        <el-table-column prop="product_name" label="产品名称" min-width="180" />
-        <el-table-column prop="type" label="类型" width="90" />
-        <el-table-column prop="version" label="版本" width="80" />
-        <el-table-column label="当前" width="80">
+      <div class="toolbar-actions">
+        <el-input v-model="keyword" placeholder="搜索产品型号/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
+        <el-button v-if="can('bom')" :disabled="!selected" @click="openTransform">转 PBOM/MBOM</el-button>
+        <el-button :disabled="!selected" @click="openCompare">BOM 比较</el-button>
+        <el-button v-if="can('bom')" type="primary" :icon="Plus" @click="openBomCreate">新建 BOM</el-button>
+      </div>
+    </div>
+    <div class="list-table-wrap">
+      <el-table :data="items" row-key="id" :expand-row-keys="expandedRowKeys" @expand-change="onExpandChange" height="100%">
+        <el-table-column type="expand">
           <template #default="{ row }">
-            <el-tag v-if="row.is_current" size="small" type="success">当前</el-tag>
-            <span v-else class="muted">-</span>
+            <div class="bom-detail-expand">
+              <div class="expand-toolbar">
+                <div>
+                  <strong>{{ row.product_model }} 结构明细</strong>
+                  <span class="muted"> · {{ row.type }} {{ row.version }} · {{ row.status }}</span>
+                </div>
+                <div class="toolbar-actions">
+                  <el-button size="small" :icon="Plus" @click="openItemCreate" :disabled="!can('bom') || row.status === '已发布'">新增行</el-button>
+                  <el-button size="small" @click="triggerImport" :disabled="!can('bom') || row.status === '已发布'">导入</el-button>
+                  <el-button size="small" type="danger" @click="removeBom" :disabled="!can('bom') || row.status === '已发布'">删除 BOM</el-button>
+                </div>
+              </div>
+              <input ref="fileInputRef" type="file" style="display:none" @change="handleImport" />
+              <div class="object-strip">
+                <div><span>产品</span><strong>{{ row.product_model }}</strong></div>
+                <div><span>有效性</span><strong>{{ row.effectivity_type }} · {{ row.effective_date || '未设置' }} - {{ row.expiry_date || '长期' }}</strong></div>
+                <div><span>下游</span><strong>{{ row.source_bom_id ? `来源 BOM#${row.source_bom_id}` : '发布后进入 ERP 队列' }}</strong></div>
+              </div>
+              <el-table :data="row.items || []" size="small" max-height="400">
+                <el-table-column prop="material_code" label="物料编码" width="130" fixed />
+                <el-table-column prop="material_name" label="物料名称" min-width="150" />
+                <el-table-column prop="category" label="类别" width="100" />
+                <el-table-column prop="specification" label="规格" min-width="150" />
+                <el-table-column prop="quantity" label="用量" width="80" />
+                <el-table-column prop="unit" label="单位" width="70" />
+                <el-table-column prop="process_step" label="工序" width="140">
+                  <template #default="{ row: itemRow }">
+                    <el-tag v-if="itemRow.process_step_id" size="small" type="success">{{ itemRow.process_step }}</el-tag>
+                    <span v-else>{{ itemRow.process_step || '未绑定' }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="substitute" label="替代料" width="110" />
+                <el-table-column prop="effective_date" label="生效日" width="110" />
+                <el-table-column prop="expiry_date" label="失效日" width="110" />
+                <el-table-column prop="status" label="状态" width="90" />
+                <el-table-column label="操作" width="190" fixed="right">
+                  <template #default="{ row: itemRow }">
+                    <div class="row-actions">
+                      <el-button size="small" @click="openWhereUsed(itemRow)">反查</el-button>
+                      <el-button size="small" @click="openItemEdit(itemRow)" :disabled="!can('bom') || row.status === '已发布'">编辑</el-button>
+                      <el-button size="small" type="danger" @click="removeItem(itemRow)" :disabled="!can('bom') || row.status === '已发布'">删除</el-button>
+                    </div>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
           </template>
         </el-table-column>
+        <el-table-column prop="product_model" label="产品型号" width="120" fixed />
+        <el-table-column prop="product_name" label="产品名称" min-width="180" />
+        <el-table-column prop="type" label="类型" width="80" />
+        <el-table-column prop="version" label="版本" width="80" />
         <el-table-column prop="effective_date" label="生效日" width="110" />
         <el-table-column prop="expiry_date" label="失效日" width="110" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column label="状态" width="120">
           <template #default="{ row }">
+            <el-tag v-if="row.is_current" size="small" type="success" style="margin-right: 4px">当前</el-tag>
             <el-tag size="small" :type="row.status === '已发布' ? 'success' : row.status === '审批中' ? 'warning' : 'info'">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="owner" label="负责人" width="90" />
         <el-table-column prop="release_date" label="发布日期" width="120" />
-        <el-table-column label="操作" width="210" fixed="right">
+        <el-table-column label="操作" width="290" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" :disabled="!can('bom') || row.status === '已发布'" @click.stop="openBomEdit(row)">编辑</el-button>
-            <el-button size="small" :disabled="!can('bom') || row.status === '已发布'" @click.stop="submit(row)">提交</el-button>
-            <el-button size="small" type="primary" :disabled="!can(['approval', 'bom']) || row.status === '已发布'" @click.stop="approve(row)">发布</el-button>
+            <div class="row-actions">
+              <el-button size="small" :disabled="!can('bom') || row.status === '已发布'" @click.stop="openBomEdit(row)">编辑</el-button>
+              <el-button size="small" :disabled="!can('bom') || row.status === '已发布'" @click.stop="submit(row)">提交</el-button>
+              <el-button size="small" type="primary" :disabled="!can(['approval', 'bom']) || row.status === '已发布'" @click.stop="approve(row)">发布</el-button>
+              <el-button size="small" @click.stop="handleExport(row)">导出</el-button>
+              <el-button size="small" @click.stop="openVersionHistory(row)">版本</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
-      </div>
-      <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
-        <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
-      </div>
     </div>
-
-    <div class="panel detail-panel">
-      <div class="toolbar">
-        <div>
-          <strong>{{ selected?.product_model || '选择 BOM' }} 结构明细</strong>
-          <span v-if="selected" class="muted"> · {{ selected.type }} {{ selected.version }} · {{ selected.status }}</span>
-        </div>
-        <div class="toolbar-actions">
-          <el-button :icon="Plus" @click="openItemCreate" :disabled="!can('bom') || !selected || selected.status === '已发布'">新增行</el-button>
-          <el-button type="danger" @click="removeBom" :disabled="!can('bom') || !selected || selected.status === '已发布'">删除 BOM</el-button>
-        </div>
-      </div>
-      <div v-if="selected" class="object-strip">
-        <div><span>产品</span><strong>{{ selected.product_model }}</strong></div>
-        <div><span>有效性</span><strong>{{ selected.effectivity_type }} · {{ selected.effective_date || '未设置' }} - {{ selected.expiry_date || '长期' }}</strong></div>
-        <div><span>下游</span><strong>{{ selected.source_bom_id ? `来源 BOM#${selected.source_bom_id}` : '发布后进入 ERP 队列' }}</strong></div>
-      </div>
-      <el-table :data="selected?.items || []" size="small" height="610">
-        <el-table-column prop="material_code" label="物料编码" width="130" fixed />
-        <el-table-column prop="material_name" label="物料名称" min-width="150" />
-        <el-table-column prop="category" label="类别" width="100" />
-        <el-table-column prop="specification" label="规格" min-width="150" />
-        <el-table-column prop="quantity" label="用量" width="80" />
-        <el-table-column prop="unit" label="单位" width="70" />
-        <el-table-column prop="process_step" label="工序" width="140">
-          <template #default="{ row }">
-            <el-tag v-if="row.process_step_id" size="small" type="success">{{ row.process_step }}</el-tag>
-            <span v-else>{{ row.process_step || '未绑定' }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="substitute" label="替代料" width="110" />
-        <el-table-column prop="effective_date" label="生效日" width="110" />
-        <el-table-column prop="expiry_date" label="失效日" width="110" />
-        <el-table-column prop="status" label="状态" width="90" />
-        <el-table-column label="操作" width="210" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" @click="openWhereUsed(row)">反查</el-button>
-            <el-button size="small" @click="openItemEdit(row)" :disabled="!can('bom') || selected?.status === '已发布'">编辑</el-button>
-            <el-button size="small" type="danger" @click="removeItem(row)" :disabled="!can('bom') || selected?.status === '已发布'">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+    <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+      <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
     </div>
 
     <el-dialog v-model="bomDialogVisible" :title="bomEditingId ? '编辑 BOM' : '新建 BOM'" width="620px">
@@ -236,6 +239,33 @@
         <el-table-column prop="expiry_date" label="失效日" width="110" />
       </el-table>
     </el-dialog>
+
+    <el-dialog v-model="versionHistoryVisible" title="BOM 版本历史" width="960px">
+      <el-table :data="versionHistory" height="420" size="small">
+        <el-table-column prop="version" label="版本" width="80" fixed />
+        <el-table-column label="当前" width="70">
+          <template #default="{ row }">
+            <el-tag v-if="row.is_current" size="small" type="success">当前</el-tag>
+            <span v-else class="muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column prop="bom_type" label="类型" width="80" />
+        <el-table-column prop="owner" label="负责人" width="90" />
+        <el-table-column prop="effective_date" label="生效日" width="110" />
+        <el-table-column prop="expiry_date" label="失效日" width="110" />
+        <el-table-column prop="source_bom_id" label="来源BOM" width="90" />
+        <el-table-column prop="change_no" label="变更单" width="130" />
+        <el-table-column prop="change_status" label="变更状态" width="90" />
+        <el-table-column prop="eca_action_no" label="ECA动作" width="110" />
+        <el-table-column label="发布门" width="110">
+          <template #default="{ row }">
+            <el-tag v-if="row.release_gate_status" size="small" :type="row.release_gate_status === '可提交' ? 'success' : 'warning'">{{ row.release_gate_status }}</el-tag>
+            <span v-else class="muted">-</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -250,10 +280,13 @@ import {
   createBomItem,
   deleteBom,
   deleteBomItem,
+  exportBomExcel,
+  getBomVersionHistory,
   getBomWhereUsed,
   getBoms,
   getProductProcessSteps,
   getProducts,
+  importBomExcel,
   submitBom,
   transformBom,
   updateBom,
@@ -268,6 +301,7 @@ const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, o
 const products = ref<any[]>([])
 const processSteps = ref<any[]>([])
 const selected = ref<any>()
+const expandedRowKeys = ref<number[]>([])
 const bomDialogVisible = ref(false)
 const itemDialogVisible = ref(false)
 const transformDialogVisible = ref(false)
@@ -284,16 +318,30 @@ const compareTargetId = ref<number | undefined>()
 const compareResult = ref<any>()
 const whereUsedRows = ref<any[]>([])
 const whereUsedMaterial = ref('')
+const versionHistoryVisible = ref(false)
+const versionHistory = ref<any[]>([])
+const fileInputRef = ref<HTMLInputElement>()
 
 async function loadBoms(keepId?: number) {
   await loadData()
-  selected.value = (items.value || []).find((item) => item.id === keepId) || (items.value || [])[0]
+  const target = keepId
+    ? (items.value || []).find((item) => item.id === keepId)
+    : (items.value || [])[0]
+  selected.value = target || null
+  expandedRowKeys.value = target ? [target.id] : []
   await loadProcessSteps()
 }
 
-async function selectBom(row: any) {
-  selected.value = row
-  await loadProcessSteps()
+async function onExpandChange(row: any, expandedRows: any[]) {
+  const isExpanded = expandedRows.some((r: any) => r.id === row.id)
+  if (isExpanded) {
+    expandedRowKeys.value = [row.id]
+    selected.value = row
+    await loadProcessSteps()
+  } else {
+    expandedRowKeys.value = []
+    selected.value = null
+  }
 }
 
 async function loadProcessSteps() {
@@ -432,6 +480,44 @@ async function openWhereUsed(row: any) {
   whereUsedMaterial.value = row.material_code
   whereUsedRows.value = await getBomWhereUsed(row.material_code)
   whereUsedDialogVisible.value = true
+}
+
+async function handleExport(row: any) {
+  try {
+    const response = await exportBomExcel(row.id)
+    const blob = new Blob([response.data])
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${row.bom_type || 'BOM'}-${row.product_model || ''}-${row.version || ''}.xlsx`
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch {
+    ElMessage.error('导出失败')
+  }
+}
+
+function triggerImport() {
+  fileInputRef.value?.click()
+}
+
+async function handleImport(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || !selected.value) return
+  try {
+    const result = await importBomExcel(selected.value.id, file)
+    ElMessage.success(`成功导入 ${result.imported} 条物料`)
+    await loadBoms(selected.value?.id)
+  } catch {
+    ElMessage.error('导入失败')
+  }
+  target.value = ''
+}
+
+async function openVersionHistory(row: any) {
+  versionHistory.value = await getBomVersionHistory(row.id)
+  versionHistoryVisible.value = true
 }
 
 onMounted(async () => {

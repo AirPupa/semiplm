@@ -14,7 +14,7 @@
 - 页面文案禁止出现“演示环境”“单组织部署”“当前唯一业务部门”“队列就绪”等实现或演示口径。
 - 当前阶段优先级：业务功能合理性和完整性优先于复杂工程严谨性。先做真实对象、真实 CRUD、真实流程闭环和合理页面交互；事务一致性、高并发、复杂锁、审计强化、性能分片等企业级工程治理暂缓到业务主线成熟后再补。
 - 目标部署环境为 Linux + Docker；Windows 仅作为当前开发环境。代码、脚本、路径和文档必须避免绑定 Windows 盘符或 PowerShell 专属习惯。
-- 日常页面和功能迭代优先提高开发效率：小改动以页面可打开、控制台无明显错误、关键交互可用为主；涉及后端接口、数据结构、部署、发布前再做后端编译、前端构建和更完整验证。
+- 日常页面和功能迭代优先提高开发效率：尽量多研发、集中测试，不要频繁 build 验证。开发多个文件或功能模块后再统一做一次前端构建和后端编译验证；小改动以页面可打开、控制台无明显错误、关键交互可用为主；涉及后端接口、数据结构、部署、发布前再做完整验证。
 - Codex 本地固定工作目录为 `C:\Users\Administrator\codex-workspace`，仓库克隆到 `C:\Users\Administrator\codex-workspace\semiplm`；后续继续开发默认基于该目录。依赖、构建产物、缓存、日志等不提交，运行数据库 `backend/semiplm.db` 属于项目数据，必须继续跟随 Git 提交。
 - Windows 开发环境启动约定：后端使用 `C:\Python314\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000`，前端使用 `npm.cmd run dev`；PowerShell 执行策略会拦截 `npm.ps1`，受限沙盒下 Vite/esbuild 和后台服务可能需要提权。Linux 部署仍以 `docker compose up --build` 为准，不能把 Windows 路径写进生产部署脚本。
 - UI 调整以业务可用和现有设计 BOM 页面风格为准，Element Plus 与 Arco 可在过渡期并存；禁止为了清理组件库而把已稳定页面改乱。若迁移组件，必须整页对齐既有业务页密度、操作列和表单交互后再保留。
@@ -318,5 +318,8 @@
 - 已完成：阶段 10 工作台增强（任务日历 + 消息通知）。新增 `GET /api/workbench/calendar?month=YYYY-MM`：聚合当前用户在该月内 due 的项目任务(ProjectTask)、ECA动作(ChangeAction)、项目交付物(ProjectDeliverable)，返回 items + summary（按类型/状态分布+逾期数）；新增 `GET /api/workbench/notifications?action=&limit=`：基于 OperationLog 聚合关键事件（发布/关闭/驳回/提交/删除/新增/编辑），按时间倒序，含 level 字段（danger/warning/success/info），按动作统计；辅助函数 `_notify_level(action)` 动作→通知级别映射。前端 WorkbenchView 新增 2 个 tab：任务日历（el-calendar 月视图，每日单元格渲染该日 due 事项，左边框颜色区分类型 项目任务蓝/ECA橙/交付物绿，逾期项红色背景，toolbar 含上月/下月/今天按钮 + 当月汇总）、消息通知（按动作筛选下拉 + 刷新按钮 + 按动作统计，表格展示时间/动作 tag 颜色/对象/对象编号/摘要/操作人）；onMounted 并行加载，watch calendarMonth 自动重载日历。
 - 已完成：阶段 11 业务闭环验证。新增 `GET /api/workbench/closure-check`：按产品检查 9 个业务环节（需求规格/产品版本/BOM/工艺路线/文档/工程变更/项目/质量追溯/下游同步）的数据完整性，每个产品返回 counts（各环节数据量）+ stage_status（ok/gap）+ breakpoints（断点数）+ closed（是否完整闭环）；summary 返回产品总数/完整闭环数/闭环率/断点总数；stage_coverage 返回每个环节的覆盖率（有数据产品数/总产品数）。项目通过 product_model 字符串关联，集成通过 IntegrationJob.product_model 关联。前端新增 ClosureCheckView.vue：顶部 4 指标卡（产品总数/完整闭环/闭环率/断点数）、环节覆盖率网格（9 环节横向条，颜色按 80%/50% 阈值区分）、产品 × 环节矩阵表格（每单元格显示数据量，绿底=ok/红底=gap，tooltip 详情，行背景色完整闭环绿底/有断点黄底）、图例。路由 `/closure-check`，工作台分组新增「闭环验证」菜单项。闭环验证是 PLM 价值核心证明：单一产品数据源贯穿需求→产品→BOM→工艺→变更→项目→质量→集成，矩阵视图一目了然定位数据缺口，是后续数据治理抓手。
 - 已完成：驾驶舱对齐修复。DashboardView 第四行「工程变更类型」(图表) 和「近期研发任务」(表格) 高度不一致问题修复——表格外包一层 `.task-table-wrap` 固定 298px（与图表等高），flex 列布局，表格 `flex:1` 填充容器，scroll y 从 278 调整为 252；第一行指标卡（BOM完整率有进度条 / 集成待处理只有数字）高度不一致问题修复——`.arco-dashboard .stat-row` 加 `display:flex; align-items:stretch`，仅作用于驾驶舱页不影响其他页面。
-- 下一步：报表深化（趋势图、导出 Excel、定时快照）、基础平台细化（系统参数独立页、权限配置独立化）、文档/工艺版本深化、文件存储落地、闭环验证结果驱动数据治理（补齐断点产品）。
+- 已完成：文档/工艺/BOM 版本历史前端深化。BomView 版本历史弹窗从 5 列扩展到 12 列，新增当前标识 tag、BOM 类型、负责人、变更单号、变更状态、ECA 动作编号、发布门状态（tag 颜色区分可提交/待变更闭环）；DocumentsView 新增「版本」按钮和版本历史弹窗（10 列：版本/当前 tag/状态/负责人/更新时间/来源版本/变更单/变更状态/ECA 动作/发布门）；ProcessView 新增「版本」按钮和版本历史弹窗（9 列：版本/当前 tag/状态/负责人/发布日期/来源路线/变更单/变更状态/ECA 动作/发布门）。三个页面均复用已有后端 version-history API，前端 import 对应函数，点击按钮异步加载版本链路数据。版本历史弹窗是 PLM 追溯核心能力：任意对象可查完整版本链路（来源版本→生成变更单→ECA 动作→生效信息→发布门状态）。
+- 已完成：角色权限配置独立化第一步。RoleManagementView 权限字段从纯文本输入改为 el-checkbox-group，19 个权限项与后端 PERMISSION_LABELS 一一对应（全部权限/系统设置/组织管理/用户管理/角色权限/流程配置/集成配置/产品主数据/需求规格/研发物料/设计BOM/文档管理/工艺路线/工程变更/项目管理/质量闭环/审批处理/ERP接口/MES接口），computed get/set 自动在数组和逗号分隔字符串间转换；列表权限列从纯文本改为 el-tag 标签展示，每项权限显示中文标签。避免手输权限字符串导致拼写错误和分派脏数据。
+- 已完成：闭环验证数据治理——补齐 4 个产品项目+质量数据。seed.py 为 VCSEL-940-3W、DFB-1310-25G、LED-MICRO-RGB、SiPh-MZM-400G 各新增独立 NPI 项目（项目编号 NPI-2026-062~065），每个项目含 5 条任务（覆盖设计/流片/验证/试产/量产导入阶段）、1~2 条风险、1~2 条交付物；VCSEL/DFB/SiPh 各新增 1 条质量问题（与已有 PR 问题报告呼应），5 个产品全部有项目和质量数据，闭环验证矩阵不再有项目断点。
+- 下一步：报表深化（趋势图、导出 Excel、定时快照）、系统参数独立页、文件存储落地。
 

@@ -9,21 +9,30 @@
     </div>
     <div class="list-table-wrap">
       <el-table :data="items" height="100%">
-        <el-table-column prop="doc_no" label="文档编号" width="190" fixed />
-        <el-table-column prop="title" label="文档名称" min-width="220" />
-        <el-table-column prop="product_model" label="产品型号" width="130" />
-        <el-table-column prop="category" label="分类" width="120" />
-        <el-table-column prop="version" label="版本" width="80" />
-        <el-table-column prop="status" label="文件状态" width="110" />
-        <el-table-column prop="approval_status" label="签核状态" width="110" />
-        <el-table-column prop="owner" label="负责人" width="90" />
-        <el-table-column prop="updated_at" label="更新时间" width="120" />
-        <el-table-column label="操作" width="230" fixed="right" class-name="table-actions-cell">
+        <el-table-column prop="doc_no" label="文档编号" width="170" fixed />
+        <el-table-column prop="title" label="文档名称" min-width="200" />
+        <el-table-column prop="product_model" label="产品型号" width="120" />
+        <el-table-column prop="category" label="分类" width="110" />
+        <el-table-column prop="version" label="版本" width="70" />
+        <el-table-column prop="status" label="文件状态" width="100" />
+        <el-table-column prop="approval_status" label="签核状态" width="100" />
+        <el-table-column prop="owner" label="负责人" width="80" />
+        <el-table-column label="附件" width="140">
           <template #default="{ row }">
-            <div class="table-actions">
+            <span v-if="row.file_name" class="file-badge">{{ row.file_name }}</span>
+            <span v-else class="muted">无</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="updated_at" label="更新时间" width="110" />
+        <el-table-column label="操作" width="370" fixed="right">
+          <template #default="{ row }">
+            <div class="row-actions">
               <el-button size="small" :disabled="!can('document') || row.status === '已发布'" @click="openEdit(row)">编辑</el-button>
               <el-button size="small" :disabled="!can('document') || row.status === '已发布'" @click="submit(row)">提交</el-button>
               <el-button size="small" type="primary" :disabled="!can(['approval', 'document']) || row.status === '已发布'" @click="approve(row)">发布</el-button>
+              <el-button size="small" :disabled="!can('document') || row.status === '已发布'" @click="triggerUpload(row)">上传</el-button>
+              <el-button size="small" :disabled="!row.file_name" @click="download(row)">下载</el-button>
+              <el-button size="small" @click="openVersionHistory(row)">版本</el-button>
               <el-button size="small" type="danger" :disabled="!can('document') || row.status === '已发布'" @click="remove(row)">删除</el-button>
             </div>
           </template>
@@ -41,6 +50,7 @@
         @size-change="onSizeChange"
       />
     </div>
+    <input ref="fileInput" type="file" style="display:none" @change="handleFileUpload" />
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑文档' : '登记文档'" width="720px">
       <el-form :model="form" label-width="90px">
         <div class="form-grid">
@@ -77,6 +87,31 @@
         <el-button type="primary" @click="save">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="versionHistoryVisible" title="文档版本历史" width="900px">
+      <el-table :data="versionHistory" height="420" size="small">
+        <el-table-column prop="version" label="版本" width="70" fixed />
+        <el-table-column label="当前" width="70">
+          <template #default="{ row }">
+            <el-tag v-if="row.is_current" size="small" type="success">当前</el-tag>
+            <span v-else class="muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column prop="owner" label="负责人" width="80" />
+        <el-table-column prop="updated_at" label="更新时间" width="110" />
+        <el-table-column prop="source_version" label="来源版本" width="90" />
+        <el-table-column prop="change_no" label="变更单" width="150" show-overflow-tooltip />
+        <el-table-column prop="change_status" label="变更状态" width="90" />
+        <el-table-column prop="eca_action_no" label="ECA动作" width="150" show-overflow-tooltip />
+        <el-table-column label="发布门" width="90">
+          <template #default="{ row }">
+            <el-tag v-if="row.release_gate_status" size="small" :type="row.release_gate_status === '可提交' ? 'success' : 'warning'">{{ row.release_gate_status }}</el-tag>
+            <span v-else class="muted">-</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -84,7 +119,7 @@
 import { Search, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
-import { approveDocument, createDocument, deleteDocument, getDocuments, getProducts, submitDocument, updateDocument } from '../api'
+import { approveDocument, createDocument, deleteDocument, downloadDocumentFile, getDocumentVersionHistory, getDocuments, getProducts, submitDocument, updateDocument, uploadDocumentFile } from '../api'
 import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
 import { useListPage } from '../composables/useListPage'
@@ -94,6 +129,10 @@ const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, o
 const products = ref<any[]>([])
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+const uploadTargetId = ref<number | null>(null)
+const versionHistoryVisible = ref(false)
+const versionHistory = ref<any[]>([])
 const emptyForm = { product_id: undefined, doc_no: '', title: '', category: '', version: 'A0', status: '编制中', owner: '', approval_status: '未提交', updated_at: '' }
 const form = ref<any>({ ...emptyForm })
 
@@ -145,9 +184,63 @@ async function approve(row: any) {
   await loadData()
 }
 
+function triggerUpload(row: any) {
+  if (!can('document') || row.status === '已发布') return
+  uploadTargetId.value = row.id
+  fileInput.value?.click()
+}
+
+async function handleFileUpload(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || !uploadTargetId.value) return
+  try {
+    await uploadDocumentFile(uploadTargetId.value, file)
+    ElMessage.success('文件上传成功')
+    await loadData()
+  } catch {
+    ElMessage.error('文件上传失败')
+  }
+  target.value = ''
+  uploadTargetId.value = null
+}
+
+async function download(row: any) {
+  if (!row.file_name) return
+  try {
+    const response = await downloadDocumentFile(row.id)
+    const blob = new Blob([response.data])
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = row.file_name
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch {
+    ElMessage.error('文件下载失败')
+  }
+}
+
+async function openVersionHistory(row: any) {
+  versionHistory.value = await getDocumentVersionHistory(row.id)
+  versionHistoryVisible.value = true
+}
+
 onMounted(async () => {
   await refreshSession()
   products.value = (await getProducts()).items
   await loadData()
 })
 </script>
+
+<style scoped>
+.file-badge {
+  font-size: 12px;
+  color: #409eff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 120px;
+}
+</style>

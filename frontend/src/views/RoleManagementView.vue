@@ -15,7 +15,14 @@
         <el-table-column prop="code" label="角色编码" width="150" fixed />
         <el-table-column prop="name" label="角色名称" width="150" />
         <el-table-column prop="description" label="职责说明" min-width="260" />
-        <el-table-column prop="permissions" label="权限范围" min-width="260" />
+        <el-table-column label="权限范围" min-width="260">
+          <template #default="{ row }">
+            <div class="perm-tags">
+              <el-tag v-for="perm in (row.permissions || '').split(',').map((s: string) => s.trim()).filter(Boolean)" :key="perm" size="small" effect="plain">{{ permLabel(perm) }}</el-tag>
+              <span v-if="!(row.permissions || '').trim()" class="muted">无</span>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="90" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
@@ -39,7 +46,11 @@
               <el-option label="停用" value="停用" />
             </el-select>
           </el-form-item>
-          <el-form-item label="权限" class="form-wide"><el-input v-model="form.permissions" /></el-form-item>
+          <el-form-item label="权限" class="form-wide">
+            <el-checkbox-group v-model="permissionArray">
+              <el-checkbox v-for="key in permissionKeys" :key="key.key" :label="key.key">{{ key.label }}</el-checkbox>
+            </el-checkbox-group>
+          </el-form-item>
           <el-form-item label="说明" class="form-wide"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
         </div>
       </el-form>
@@ -54,7 +65,7 @@
 <script setup lang="ts">
 import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { createAdminRole, deleteAdminRole, getAdminRoles, updateAdminRole } from '../api'
 import { useAuth } from '../auth'
 import { useListPage } from '../composables/useListPage'
@@ -65,6 +76,38 @@ const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const emptyForm = { code: '', name: '', description: '', permissions: '', status: '启用' }
 const form = ref<any>({ ...emptyForm })
+
+const permissionKeys = [
+  { key: 'all', label: '全部权限' },
+  { key: 'system', label: '系统设置' },
+  { key: 'organization', label: '组织管理' },
+  { key: 'user', label: '用户管理' },
+  { key: 'role', label: '角色权限' },
+  { key: 'workflow', label: '流程配置' },
+  { key: 'integration', label: '集成配置' },
+  { key: 'product', label: '产品主数据' },
+  { key: 'requirement', label: '需求规格' },
+  { key: 'material', label: '研发物料' },
+  { key: 'bom', label: '设计 BOM' },
+  { key: 'document', label: '文档管理' },
+  { key: 'process', label: '工艺路线' },
+  { key: 'change', label: '工程变更' },
+  { key: 'project', label: '项目管理' },
+  { key: 'quality', label: '质量闭环' },
+  { key: 'approval', label: '审批处理' },
+  { key: 'erp', label: 'ERP 接口' },
+  { key: 'mes', label: 'MES 接口' },
+]
+
+const permissionArray = computed<string[]>({
+  get() {
+    const raw = form.value.permissions || ''
+    return raw.split(',').map((s: string) => s.trim()).filter(Boolean)
+  },
+  set(val: string[]) {
+    form.value.permissions = val.join(',')
+  },
+})
 
 function openCreate() { editingId.value = null; form.value = { ...emptyForm }; dialogVisible.value = true }
 function openEdit(row: any) { editingId.value = row.id; form.value = { ...row }; dialogVisible.value = true }
@@ -81,7 +124,20 @@ async function remove(row: any) {
   await loadData()
 }
 
+function permLabel(key: string): string {
+  const found = permissionKeys.find((p) => p.key === key)
+  return found ? found.label : key
+}
+
 onMounted(async () => {
   await loadData()
 })
 </script>
+
+<style scoped>
+.perm-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+</style>

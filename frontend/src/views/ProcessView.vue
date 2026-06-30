@@ -1,85 +1,86 @@
 <template>
-  <div class="grid-main" v-loading="loading">
-    <div class="panel list-panel">
-      <div class="toolbar">
-        <div>
-          <strong>工艺路线</strong>
-          <span class="muted"> · 路线发布后下发 MES 工艺流程和站点控制</span>
-        </div>
-        <div class="toolbar-actions">
-          <el-input v-model="keyword" placeholder="搜索路线编号/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
-          <el-button :disabled="!can('process')" @click="openRouteCreate">新增路线</el-button>
-          <el-button :disabled="!can('process') || !selected || selected.status === '已发布'" @click="submit(selected)">提交</el-button>
-          <el-button type="primary" :disabled="!can(['approval', 'process']) || !selected || selected.status === '已发布'" @click="approve(selected)">发布</el-button>
-        </div>
+  <div class="panel list-panel" v-loading="loading">
+    <div class="toolbar">
+      <div>
+        <strong>工艺路线</strong>
       </div>
-      <div class="list-table-wrap">
-        <el-table :data="items" highlight-current-row @current-change="selected = $event" height="100%">
-          <el-table-column prop="route_no" label="路线编号" width="180" />
-          <el-table-column prop="product_model" label="型号" width="130" />
-          <el-table-column prop="name" label="路线名称" min-width="210" />
-          <el-table-column prop="version" label="版本" width="80" />
-          <el-table-column prop="source_route_id" label="来源" width="90">
-            <template #default="{ row }">
-              <span>{{ row.source_route_id ? `#${row.source_route_id}` : '-' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="status" label="状态" width="90">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.status === '已发布' ? 'success' : row.status === '审批中' ? 'warning' : 'info'">{{ row.status }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="release_date" label="发布日期" width="110" />
-          <el-table-column label="操作" width="150" fixed="right" class-name="table-actions-cell">
-            <template #default="{ row }">
-              <div class="table-actions">
-                <el-button size="small" :disabled="!can('process') || row.status === '已发布'" @click.stop="openRouteEdit(row)">编辑</el-button>
-                <el-button size="small" type="danger" :disabled="!can('process') || row.status === '已发布'" @click.stop="removeRoute(row)">删除</el-button>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-      <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
-        <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
+      <div class="toolbar-actions">
+        <el-input v-model="keyword" placeholder="搜索路线编号/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
+        <el-button :disabled="!can('process')" @click="openRouteCreate">新增路线</el-button>
+        <el-button :disabled="!can('process') || !selected || selected.status === '已发布'" @click="submit(selected)">提交</el-button>
+        <el-button type="primary" :disabled="!can(['approval', 'process']) || !selected || selected.status === '已发布'" @click="approve(selected)">发布</el-button>
       </div>
     </div>
-    <div class="panel detail-panel">
-      <div class="toolbar">
-        <div>
-          <strong>{{ selected?.name || '工序步骤' }}</strong>
-          <span v-if="selected" class="muted"> · {{ selected.product_model }} {{ selected.version }} · {{ selected.status }}</span>
-        </div>
-        <div class="toolbar-actions">
-          <el-button size="small" :disabled="!can('process') || !selected || selected.status === '已发布'" @click="openStepCreate">新增工序</el-button>
-        </div>
-      </div>
-      <div v-if="selected" class="object-strip">
-        <div><span>路线编号</span><strong>{{ selected.route_no }}</strong></div>
-        <div><span>来源路线</span><strong>{{ selected.source_route_id ? `#${selected.source_route_id}` : '-' }}</strong></div>
-        <div><span>发布状态</span><strong>{{ selected.status }} / {{ selected.release_date || '未发布' }}</strong></div>
-        <div><span>集成目标</span><strong>MES 工艺流程、工序参数、站点控制</strong></div>
-      </div>
-      <el-table v-if="selected" :data="selected.steps" size="small" class="section-gap">
-        <el-table-column prop="sequence" label="序号" width="70" />
-        <el-table-column prop="stage" label="阶段" width="120" />
-        <el-table-column prop="operation" label="工序" width="160" />
-        <el-table-column prop="key_params" label="关键参数" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="owner" label="负责人" width="90" />
-        <el-table-column prop="status" label="状态" width="90">
+    <div class="list-table-wrap">
+      <el-table :data="items" row-key="id" :expand-row-keys="expandedRowKeys" @expand-change="onExpandChange" height="100%">
+        <el-table-column type="expand">
           <template #default="{ row }">
-            <el-tag size="small">{{ row.status }}</el-tag>
+            <div class="bom-detail-expand">
+              <div class="expand-toolbar">
+                <div>
+                  <strong>{{ row.name }} 工序步骤</strong>
+                </div>
+                <div class="toolbar-actions">
+                  <el-button size="small" :disabled="!can('process') || row.status === '已发布'" @click="openStepCreate">新增工序</el-button>
+                </div>
+              </div>
+              <div class="object-strip">
+                <div><span>路线编号</span><strong>{{ row.route_no }}</strong></div>
+                <div><span>来源路线</span><strong>{{ row.source_route_id ? `#${row.source_route_id}` : '-' }}</strong></div>
+                <div><span>发布状态</span><strong>{{ row.status }} / {{ row.release_date || '未发布' }}</strong></div>
+                <div><span>集成目标</span><strong>MES 工艺流程、工序参数、站点控制</strong></div>
+              </div>
+              <el-table :data="row.steps || []" size="small" max-height="400">
+                <el-table-column prop="sequence" label="序号" width="70" />
+                <el-table-column prop="stage" label="阶段" width="120" />
+                <el-table-column prop="operation" label="工序" width="160" />
+                <el-table-column prop="key_params" label="关键参数" min-width="220" show-overflow-tooltip />
+                <el-table-column prop="owner" label="负责人" width="90" />
+                <el-table-column prop="status" label="状态" width="90">
+                  <template #default="{ row: itemRow }">
+                    <el-tag size="small">{{ itemRow.status }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="150" fixed="right">
+                  <template #default="{ row: itemRow }">
+                    <div class="row-actions">
+                      <el-button size="small" :disabled="!can('process') || row.status === '已发布'" @click="openStepEdit(itemRow)">编辑</el-button>
+                      <el-button size="small" type="danger" :disabled="!can('process') || row.status === '已发布'" @click="removeStep(itemRow)">删除</el-button>
+                    </div>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right" class-name="table-actions-cell">
+        <el-table-column prop="route_no" label="路线编号" width="180" />
+        <el-table-column prop="product_model" label="型号" width="130" />
+        <el-table-column prop="name" label="路线名称" min-width="210" />
+        <el-table-column prop="version" label="版本" width="80" />
+        <el-table-column prop="source_route_id" label="来源" width="90">
           <template #default="{ row }">
-            <div class="table-actions">
-              <el-button size="small" :disabled="!can('process') || selected.status === '已发布'" @click="openStepEdit(row)">编辑</el-button>
-              <el-button size="small" type="danger" :disabled="!can('process') || selected.status === '已发布'" @click="removeStep(row)">删除</el-button>
+            <span>{{ row.source_route_id ? `#${row.source_route_id}` : '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="90">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.status === '已发布' ? 'success' : row.status === '审批中' ? 'warning' : 'info'">{{ row.status }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="release_date" label="发布日期" width="110" />
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <div class="row-actions">
+              <el-button size="small" @click.stop="openVersionHistory(row)">版本</el-button>
+              <el-button size="small" :disabled="!can('process') || row.status === '已发布'" @click.stop="openRouteEdit(row)">编辑</el-button>
+              <el-button size="small" type="danger" :disabled="!can('process') || row.status === '已发布'" @click.stop="removeRoute(row)">删除</el-button>
             </div>
           </template>
         </el-table-column>
       </el-table>
+    </div>
+    <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+      <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
     </div>
 
     <el-dialog v-model="routeDialogVisible" :title="editingRouteId ? '编辑工艺路线' : '新增工艺路线'" width="720px">
@@ -129,6 +130,31 @@
         <el-button type="primary" @click="saveStep">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="versionHistoryVisible" title="工艺路线版本历史" width="900px">
+      <el-table :data="versionHistory" height="420" size="small">
+        <el-table-column prop="version" label="版本" width="80" fixed />
+        <el-table-column label="当前" width="70">
+          <template #default="{ row }">
+            <el-tag v-if="row.is_current" size="small" type="success">当前</el-tag>
+            <span v-else class="muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column prop="owner" label="负责人" width="90" />
+        <el-table-column prop="release_date" label="发布日期" width="110" />
+        <el-table-column prop="source_route_id" label="来源路线" width="100" />
+        <el-table-column prop="change_no" label="变更单" width="130" />
+        <el-table-column prop="change_status" label="变更状态" width="90" />
+        <el-table-column prop="eca_action_no" label="ECA动作" width="110" />
+        <el-table-column label="发布门" width="110">
+          <template #default="{ row }">
+            <el-tag v-if="row.release_gate_status" size="small" :type="row.release_gate_status === '可提交' ? 'success' : 'warning'">{{ row.release_gate_status }}</el-tag>
+            <span v-else class="muted">-</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -144,6 +170,7 @@ import {
   deleteProcessRoute,
   deleteProcessStep,
   getProducts,
+  getProcessRouteVersionHistory,
   getRoutes,
   submitProcessRoute,
   updateProcessRoute,
@@ -155,6 +182,7 @@ import { useListPage } from '../composables/useListPage'
 const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getRoutes)
 const products = ref<any[]>([])
 const selected = ref<any>()
+const expandedRowKeys = ref<number[]>([])
 const { can, currentUser, refreshSession } = useAuth()
 const routeDialogVisible = ref(false)
 const editingRouteId = ref<number | null>(null)
@@ -164,10 +192,27 @@ const stepDialogVisible = ref(false)
 const editingStepId = ref<number | null>(null)
 const emptyStep = { sequence: 10, stage: '', operation: '', key_params: '', owner: '', status: '有效' }
 const stepForm = ref<any>({ ...emptyStep })
+const versionHistoryVisible = ref(false)
+const versionHistory = ref<any[]>([])
 
 async function loadRoutes(keepId?: number) {
   await loadData()
-  selected.value = (items.value || []).find((item) => item.id === keepId) || (items.value || [])[0]
+  const target = keepId
+    ? (items.value || []).find((item) => item.id === keepId)
+    : (items.value || [])[0]
+  selected.value = target || null
+  expandedRowKeys.value = target ? [target.id] : []
+}
+
+async function onExpandChange(row: any, expandedRows: any[]) {
+  const isExpanded = expandedRows.some((r: any) => r.id === row.id)
+  if (isExpanded) {
+    expandedRowKeys.value = [row.id]
+    selected.value = row
+  } else {
+    expandedRowKeys.value = []
+    selected.value = null
+  }
 }
 
 function openRouteCreate() {
@@ -261,6 +306,11 @@ async function approve(row: any) {
   const next = await approveProcessRoute(row.id, { acted_by: currentUser.value?.display_name || '系统用户', comment: '发布工艺路线并下发 MES' })
   ElMessage.success('工艺路线已发布，MES 同步队列已生成')
   await loadRoutes(next.id)
+}
+
+async function openVersionHistory(row: any) {
+  versionHistory.value = await getProcessRouteVersionHistory(row.id)
+  versionHistoryVisible.value = true
 }
 
 onMounted(async () => {
