@@ -5956,11 +5956,31 @@ def export_report_quality_closure(db: Session = Depends(get_db)):
 
 # ---- 通用附件管理 ----
 
+ATTACHMENT_PERMISSION_BY_OBJECT = {
+    "BOM": "bom",
+    "Change": "change",
+    "Project": "project",
+    "Document": "document",
+    "Requirement": "requirement",
+    "QualityIssue": "quality",
+}
+
+
+def _require_attachment_permission(object_type: str, context: dict) -> None:
+    permission = ATTACHMENT_PERMISSION_BY_OBJECT.get(object_type)
+    if not permission:
+        raise HTTPException(status_code=400, detail="Unsupported attachment object type")
+    if not has_permission(context, permission):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+
 @app.get("/api/attachments")
-def list_attachments(object_type: str = "", object_id: int = 0, db: Session = Depends(get_db)) -> list[dict]:
+def list_attachments(object_type: str = "", object_id: int = 0, db: Session = Depends(get_db), context: dict = Depends(current_user_context)) -> list[dict]:
+    if not object_type:
+        raise HTTPException(status_code=400, detail="object_type is required")
+    _require_attachment_permission(object_type, context)
     q = db.query(models.Attachment)
-    if object_type:
-        q = q.filter(models.Attachment.object_type == object_type)
+    q = q.filter(models.Attachment.object_type == object_type)
     if object_id:
         q = q.filter(models.Attachment.object_id == object_id)
     rows = q.order_by(models.Attachment.id.desc()).all()
@@ -5968,10 +5988,12 @@ def list_attachments(object_type: str = "", object_id: int = 0, db: Session = De
 
 
 @app.post("/api/attachments/upload", status_code=201)
-async def upload_attachment(object_type: str = Form(...), object_id: int = Form(...), description: str = Form(""), file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_attachment(object_type: str = Form(...), object_id: int = Form(...), description: str = Form(""), file: UploadFile = File(...), db: Session = Depends(get_db), context: dict = Depends(current_user_context)):
     from datetime import datetime
     from uuid import uuid4
 
+    _require_attachment_permission(object_type, context)
+    user_name = context["user"].display_name
     os.makedirs(FILE_UPLOAD_DIR, exist_ok=True)
     original_name = os.path.basename(file.filename or "attachment")
     safe_name = f"{object_type}_{object_id}_{uuid4().hex}_{original_name}"
@@ -5987,24 +6009,28 @@ async def upload_attachment(object_type: str = Form(...), object_id: int = Form(
         file_size=len(content),
         file_type=file.content_type or "",
         description=description,
-        uploaded_by="系统用户",
+        uploaded_by=user_name,
         uploaded_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
     )
     db.add(att)
+    audit_log(db, "附件上传", object_type, object_id, f"{object_type}#{object_id}", f"上传附件 {original_name}", user_name)
     db.commit()
     db.refresh(att)
     return _attachment_dict(att)
 
 
 @app.get("/api/attachments/{attachment_id}/download")
-def download_attachment(attachment_id: int, db: Session = Depends(get_db)):
+def download_attachment(attachment_id: int, db: Session = Depends(get_db), context: dict = Depends(current_user_context)):
     att = db.query(models.Attachment).filter(models.Attachment.id == attachment_id).first()
     if not att:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    _require_attachment_permission(att.object_type, context)
     if not os.path.exists(att.file_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
     with open(att.file_path, "rb") as f:
         content = f.read()
+    audit_log(db, "附件下载", att.object_type, att.object_id, f"{att.object_type}#{att.object_id}", f"下载附件 {att.file_name}", context["user"].display_name)
+    db.commit()
     return Response(
         content=content,
         media_type="application/octet-stream",
@@ -6013,13 +6039,18 @@ def download_attachment(attachment_id: int, db: Session = Depends(get_db)):
 
 
 @app.delete("/api/attachments/{attachment_id}")
-def delete_attachment(attachment_id: int, db: Session = Depends(get_db)):
+def delete_attachment(attachment_id: int, db: Session = Depends(get_db), context: dict = Depends(current_user_context)):
     att = db.query(models.Attachment).filter(models.Attachment.id == attachment_id).first()
     if not att:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    _require_attachment_permission(att.object_type, context)
+    object_type = att.object_type
+    object_id = att.object_id
+    file_name = att.file_name
     if os.path.exists(att.file_path):
         os.remove(att.file_path)
     db.delete(att)
+    audit_log(db, "附件删除", object_type, object_id, f"{object_type}#{object_id}", f"删除附件 {file_name}", context["user"].display_name)
     db.commit()
     return {"ok": True}
 

@@ -122,5 +122,6 @@
 - 已完成系统参数独立页：新增 `/admin/system-parameters` 菜单和 `SystemParametersView.vue`，系统参数从基础配置 tab 拆出，支持分页、搜索和 CRUD。
 - 已完成报表快照第一轮：新增 ReportSnapshot 模型、报表快照生成/历史 API，ReportsView 支持生成当前报表快照和查看快照历史；seed.py 增加 `REPORT_SNAPSHOT_CRON` 计划参数。
 - 已完成附件接入扩展：AttachmentPanel 已接入 BOM、工程变更、项目、文档、需求、质量问题。
-- 下一步：附件权限/审计细化；报表快照后续接真实后台定时任务。
+- 已完成附件权限/审计细化第一轮：附件 API 按对象类型校验业务权限，上传/下载/删除写入操作日志，上传人来自当前用户。
+- 下一步：报表快照后续接真实后台定时任务；继续拆基础配置子页。
 
