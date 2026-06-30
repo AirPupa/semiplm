@@ -60,6 +60,7 @@
                   </template>
                 </el-table-column>
               </el-table>
+              <AttachmentPanel :object-type="'BOM'" :object-id="row.id" :can-edit="can('bom')" />
             </div>
           </template>
         </el-table-column>
@@ -294,6 +295,7 @@ import {
 } from '../api'
 import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
+import AttachmentPanel from '../components/AttachmentPanel.vue'
 import { useListPage } from '../composables/useListPage'
 
 const { can, currentUser, refreshSession } = useAuth()

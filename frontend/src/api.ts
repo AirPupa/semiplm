@@ -716,6 +716,61 @@ export async function getReportQualityClosure() {
   return data
 }
 
+export async function exportReportCompleteness() {
+  const res = await client.get('/api/reports/completeness/export', { responseType: 'blob' })
+  triggerDownload(res, 'report_completeness.xlsx')
+}
+
+export async function exportReportChangeCycle() {
+  const res = await client.get('/api/reports/change-cycle/export', { responseType: 'blob' })
+  triggerDownload(res, 'report_change_cycle.xlsx')
+}
+
+export async function exportReportProjectProgress() {
+  const res = await client.get('/api/reports/project-progress/export', { responseType: 'blob' })
+  triggerDownload(res, 'report_project_progress.xlsx')
+}
+
+export async function exportReportQualityClosure() {
+  const res = await client.get('/api/reports/quality-closure/export', { responseType: 'blob' })
+  triggerDownload(res, 'report_quality_closure.xlsx')
+}
+
+export async function getAttachments(objectType: string, objectId: number) {
+  const { data } = await client.get('/api/attachments', { params: { object_type: objectType, object_id: objectId } })
+  return data
+}
+
+export async function uploadAttachment(objectType: string, objectId: number, file: File, description?: string) {
+  const form = new FormData()
+  form.append('object_type', objectType)
+  form.append('object_id', String(objectId))
+  form.append('file', file)
+  if (description) form.append('description', description)
+  const { data } = await client.post('/api/attachments/upload', form)
+  return data
+}
+
+export async function downloadAttachment(attachmentId: number) {
+  const res = await client.get(`/api/attachments/${attachmentId}/download`, { responseType: 'blob' })
+  triggerDownload(res, `attachment_${attachmentId}`)
+}
+
+export async function deleteAttachment(attachmentId: number) {
+  await client.delete(`/api/attachments/${attachmentId}`)
+}
+
+function triggerDownload(res: any, filename: string) {
+  const url = window.URL.createObjectURL(new Blob([res.data]))
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
+
 export async function getSubstituteMaterials(params?: { page?: number; page_size?: number; keyword?: string }) {
   const { data } = await client.get('/api/substitute-materials', { params })
   return data

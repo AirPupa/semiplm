@@ -767,3 +767,18 @@ class QualityReport(Base):
     status: Mapped[str] = mapped_column(String(30), default="已归档")
     archived_at: Mapped[str] = mapped_column(String(30), default="")
     archived_by: Mapped[str] = mapped_column(String(80), default="")
+
+
+class Attachment(Base):
+    __tablename__ = "attachments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    object_type: Mapped[str] = mapped_column(String(60))
+    object_id: Mapped[int] = mapped_column(Integer)
+    file_name: Mapped[str] = mapped_column(String(255))
+    file_path: Mapped[str] = mapped_column(String(500))
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    file_type: Mapped[str] = mapped_column(String(100), default="")
+    description: Mapped[str] = mapped_column(String(240), default="")
+    uploaded_by: Mapped[str] = mapped_column(String(80), default="")
+    uploaded_at: Mapped[str] = mapped_column(String(30), default="")

@@ -71,6 +71,7 @@ def seed_database(db: Session) -> None:
             models.Project,
             models.QualityLot,
             models.QualityIssue,
+            models.Attachment,
             models.Material,
             models.Product,
             models.User,

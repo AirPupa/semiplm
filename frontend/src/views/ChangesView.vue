@@ -116,6 +116,7 @@
                   </el-table-column>
                 </el-table>
               </div>
+              <AttachmentPanel object-type="Change" :object-id="row.id" :can-edit="can('change')" />
             </div>
           </template>
         </el-table-column>
@@ -413,6 +414,7 @@ import {
 } from '../api'
 import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
+import AttachmentPanel from '../components/AttachmentPanel.vue'
 import { useListPage } from '../composables/useListPage'
 
 const router = useRouter()

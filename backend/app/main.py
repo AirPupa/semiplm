@@ -1,6 +1,6 @@
 import os
 import io
-from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -5710,6 +5710,251 @@ def report_quality_closure(db: Session = Depends(get_db)) -> dict:
         "capa_by_source": [{"name": name, "value": value} for name, value in capa_source_rows],
         "quality_trend": [{"date": d, "cp": round(cp, 1), "ft": round(ft, 1)} for d, cp, ft in quality_trend_rows],
         "issues": issue_rows,
+    }
+
+
+@app.get("/api/reports/completeness/export")
+def export_report_completeness(db: Session = Depends(get_db)):
+    from openpyxl import Workbook
+    data = report_completeness(db)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "数据完整度"
+    s = data["summary"]
+    ws.append(["指标", "值"])
+    ws.append(["产品总数", s.get("product_total", 0)])
+    ws.append(["文档覆盖率", f"{s.get('doc_coverage', 0)}%"])
+    ws.append(["BOM覆盖率", f"{s.get('bom_coverage', 0)}%"])
+    ws.append(["工艺覆盖率", f"{s.get('route_coverage', 0)}%"])
+    ws.append(["需求覆盖率", f"{s.get('req_coverage', 0)}%"])
+    ws.append(["文档签核率", f"{s.get('doc_signed_rate', 0)}%"])
+    ws.append(["BOM发布率", f"{s.get('bom_released_rate', 0)}%"])
+    ws.append(["工艺发布率", f"{s.get('route_released_rate', 0)}%"])
+    ws.append(["资料齐套产品数", s.get("full_ready_count", 0)])
+    ws.append([])
+    ws.append(["型号", "名称", "生命周期", "负责人", "需求", "BOM", "工艺", "文档", "完整度%"])
+    for p in data.get("products", []):
+        ws.append([p.get("model"), p.get("name"), p.get("lifecycle"), p.get("owner"),
+                    "有" if p.get("has_req") else "无", "有" if p.get("has_bom") else "无",
+                    "有" if p.get("has_route") else "无", "有" if p.get("has_doc") else "无",
+                    p.get("completeness", 0)])
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return Response(content=output.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="report_completeness.xlsx"'})
+
+
+@app.get("/api/reports/change-cycle/export")
+def export_report_change_cycle(db: Session = Depends(get_db)):
+    from openpyxl import Workbook
+    data = report_change_cycle(db)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "变更周期"
+    s = data["summary"]
+    ws.append(["指标", "值"])
+    ws.append(["变更单总数", s.get("change_total", 0)])
+    ws.append(["ECA总数", s.get("eca_total", 0)])
+    ws.append(["ECA已完成", s.get("eca_closed", 0)])
+    ws.append(["ECA待处理", s.get("eca_pending", 0)])
+    ws.append(["ECA关闭率", f"{s.get('eca_close_rate', 0)}%"])
+    ws.append([])
+    ws.append(["状态分布"])
+    ws.append(["状态", "数量"])
+    for r in data.get("by_status", []):
+        ws.append([r["name"], r["value"]])
+    ws.append([])
+    ws.append(["类型分布"])
+    ws.append(["类型", "数量"])
+    for r in data.get("by_type", []):
+        ws.append([r["name"], r["value"]])
+    ws.append([])
+    ws.append(["优先级分布"])
+    ws.append(["优先级", "数量"])
+    for r in data.get("by_priority", []):
+        ws.append([r["name"], r["value"]])
+    ws.append([])
+    ws.append(["近期变更ECA关闭率明细"])
+    ws.append(["变更单", "标题", "类型", "优先级", "状态", "ECA已完成", "ECA总数", "关闭率%"])
+    for c in data.get("recent_changes", []):
+        ws.append([c.get("change_no"), c.get("title"), c.get("change_type"), c.get("priority"), c.get("status"), c.get("eca_closed"), c.get("eca_total"), c.get("eca_close_rate")])
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return Response(content=output.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="report_change_cycle.xlsx"'})
+
+
+@app.get("/api/reports/project-progress/export")
+def export_report_project_progress(db: Session = Depends(get_db)):
+    from openpyxl import Workbook
+    data = report_project_progress(db)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "项目进度"
+    s = data["summary"]
+    ws.append(["指标", "值"])
+    ws.append(["项目总数", s.get("project_total", 0)])
+    ws.append(["逾期任务数", s.get("overdue_task_count", 0)])
+    ws.append(["平均进度", f"{s.get('avg_progress', 0)}%"])
+    ws.append(["未关闭风险数", s.get("open_risk_count", 0)])
+    ws.append([])
+    ws.append(["阶段门分布"])
+    ws.append(["阶段", "数量"])
+    for r in data.get("by_phase", []):
+        ws.append([r["name"], r["value"]])
+    ws.append([])
+    ws.append(["风险等级分布"])
+    ws.append(["风险等级", "数量"])
+    for r in data.get("by_risk", []):
+        ws.append([r["name"], r["value"]])
+    ws.append([])
+    ws.append(["风险类型分布"])
+    ws.append(["风险类型", "数量"])
+    for r in data.get("by_risk_type", []):
+        ws.append([r["name"], r["value"]])
+    ws.append([])
+    ws.append(["逾期任务明细"])
+    ws.append(["项目编号", "项目名称", "任务", "阶段", "负责人", "截止日期", "状态"])
+    for t in data.get("overdue_tasks", []):
+        ws.append([t.get("project_no"), t.get("project_name"), t.get("name"), t.get("phase"), t.get("owner"), t.get("due_date"), t.get("status")])
+    ws.append([])
+    ws.append(["项目进度明细"])
+    ws.append(["项目编号", "项目名称", "阶段", "进度%", "负责人", "任务完成率%", "未关闭风险"])
+    for p in data.get("projects", []):
+        ws.append([p.get("project_no"), p.get("name"), p.get("phase"), p.get("progress"), p.get("owner"), p.get("task_done_rate"), p.get("open_risks")])
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return Response(content=output.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="report_project_progress.xlsx"'})
+
+
+@app.get("/api/reports/quality-closure/export")
+def export_report_quality_closure(db: Session = Depends(get_db)):
+    from openpyxl import Workbook
+    data = report_quality_closure(db)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "质量闭环"
+    s = data["summary"]
+    ws.append(["指标", "值"])
+    ws.append(["质量问题总数", s.get("issue_total", 0)])
+    ws.append(["问题敞口数", s.get("issue_open", 0)])
+    ws.append(["问题关闭率", f"{s.get('issue_close_rate', 0)}%"])
+    ws.append(["CAPA总数", s.get("capa_total", 0)])
+    ws.append(["CAPA敞口数", s.get("capa_open", 0)])
+    ws.append(["CAPA关闭率", f"{s.get('capa_close_rate', 0)}%"])
+    ws.append([])
+    ws.append(["问题严重度分布"])
+    ws.append(["严重度", "数量"])
+    for r in data.get("issue_by_severity", []):
+        ws.append([r["name"], r["value"]])
+    ws.append([])
+    ws.append(["问题状态分布"])
+    ws.append(["状态", "数量"])
+    for r in data.get("issue_by_status", []):
+        ws.append([r["name"], r["value"]])
+    ws.append([])
+    ws.append(["CAPA来源分布"])
+    ws.append(["来源", "数量"])
+    for r in data.get("capa_by_source", []):
+        ws.append([r["name"], r["value"]])
+    ws.append([])
+    ws.append(["良率趋势"])
+    ws.append(["日期", "CP良率%", "FT良率%"])
+    for t in data.get("quality_trend", []):
+        ws.append([t.get("date"), t.get("cp"), t.get("ft")])
+    ws.append([])
+    ws.append(["质量问题清单"])
+    ws.append(["问题编号", "标题", "型号", "Lot", "严重度", "状态", "负责人", "CAPA已关闭", "CAPA总数"])
+    for i in data.get("issues", []):
+        ws.append([i.get("issue_no"), i.get("title"), i.get("product_model"), i.get("lot_no"), i.get("severity"), i.get("status"), i.get("owner"), i.get("capa_closed"), i.get("capa_count")])
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return Response(content=output.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="report_quality_closure.xlsx"'})
+
+
+# ---- 通用附件管理 ----
+
+@app.get("/api/attachments")
+def list_attachments(object_type: str = "", object_id: int = 0, db: Session = Depends(get_db)) -> list[dict]:
+    q = db.query(models.Attachment)
+    if object_type:
+        q = q.filter(models.Attachment.object_type == object_type)
+    if object_id:
+        q = q.filter(models.Attachment.object_id == object_id)
+    rows = q.order_by(models.Attachment.id.desc()).all()
+    return [_attachment_dict(r) for r in rows]
+
+
+@app.post("/api/attachments/upload", status_code=201)
+async def upload_attachment(object_type: str = Form(...), object_id: int = Form(...), description: str = Form(""), file: UploadFile = File(...), db: Session = Depends(get_db)):
+    from datetime import datetime
+    from uuid import uuid4
+
+    os.makedirs(FILE_UPLOAD_DIR, exist_ok=True)
+    original_name = os.path.basename(file.filename or "attachment")
+    safe_name = f"{object_type}_{object_id}_{uuid4().hex}_{original_name}"
+    file_path = os.path.join(FILE_UPLOAD_DIR, safe_name)
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+    att = models.Attachment(
+        object_type=object_type,
+        object_id=object_id,
+        file_name=original_name,
+        file_path=file_path,
+        file_size=len(content),
+        file_type=file.content_type or "",
+        description=description,
+        uploaded_by="系统用户",
+        uploaded_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
+    )
+    db.add(att)
+    db.commit()
+    db.refresh(att)
+    return _attachment_dict(att)
+
+
+@app.get("/api/attachments/{attachment_id}/download")
+def download_attachment(attachment_id: int, db: Session = Depends(get_db)):
+    att = db.query(models.Attachment).filter(models.Attachment.id == attachment_id).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    if not os.path.exists(att.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    with open(att.file_path, "rb") as f:
+        content = f.read()
+    return Response(
+        content=content,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{att.file_name}"'},
+    )
+
+
+@app.delete("/api/attachments/{attachment_id}")
+def delete_attachment(attachment_id: int, db: Session = Depends(get_db)):
+    att = db.query(models.Attachment).filter(models.Attachment.id == attachment_id).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    if os.path.exists(att.file_path):
+        os.remove(att.file_path)
+    db.delete(att)
+    db.commit()
+    return {"ok": True}
+
+
+def _attachment_dict(r: models.Attachment) -> dict:
+    return {
+        "id": r.id,
+        "object_type": r.object_type,
+        "object_id": r.object_id,
+        "file_name": r.file_name,
+        "file_size": r.file_size,
+        "file_type": r.file_type,
+        "description": r.description,
+        "uploaded_by": r.uploaded_by,
+        "uploaded_at": r.uploaded_at,
     }
 
 

@@ -79,6 +79,7 @@
               <el-button v-if="can('project')" size="small" type="primary" @click="openCreateRisk(row)" style="margin-top:8px">新增风险</el-button>
             </el-tab-pane>
           </el-tabs>
+          <AttachmentPanel object-type="Project" :object-id="row.id" :can-edit="can('project')" />
         </template>
       </el-table-column>
       <el-table-column prop="project_no" label="项目编号" width="150" />
@@ -281,6 +282,7 @@ import {
 } from '../api'
 import { useAuth } from '../auth'
 import UserSelect from '../components/UserSelect.vue'
+import AttachmentPanel from '../components/AttachmentPanel.vue'
 import { useListPage } from '../composables/useListPage'
 
 const { can, currentUser } = useAuth()

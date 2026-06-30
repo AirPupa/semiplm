@@ -11,6 +11,9 @@
       <!-- 数据完整度 -->
       <el-tab-pane label="数据完整度" name="completeness">
         <div v-if="completeness" class="report-body">
+          <div class="report-tab-toolbar">
+            <el-button size="small" @click="() => doExport('completeness')" :loading="exporting === 'completeness'">导出 Excel</el-button>
+          </div>
           <el-row :gutter="12" class="metric-row">
             <el-col :span="6" v-for="m in completenessMetrics" :key="m.key">
               <el-card shadow="never" class="metric-card">
@@ -49,6 +52,9 @@
       <!-- 变更周期 -->
       <el-tab-pane label="变更周期" name="change">
         <div v-if="changeCycle" class="report-body">
+          <div class="report-tab-toolbar">
+            <el-button size="small" @click="() => doExport('change')" :loading="exporting === 'change'">导出 Excel</el-button>
+          </div>
           <el-row :gutter="12" class="metric-row">
             <el-col :span="6" v-for="m in changeMetrics" :key="m.key">
               <el-card shadow="never" class="metric-card">
@@ -112,6 +118,9 @@
       <!-- 项目进度 -->
       <el-tab-pane label="项目进度" name="project">
         <div v-if="projectProgress" class="report-body">
+          <div class="report-tab-toolbar">
+            <el-button size="small" @click="() => doExport('project')" :loading="exporting === 'project'">导出 Excel</el-button>
+          </div>
           <el-row :gutter="12" class="metric-row">
             <el-col :span="6" v-for="m in projectMetrics" :key="m.key">
               <el-card shadow="never" class="metric-card">
@@ -173,6 +182,9 @@
       <!-- 质量闭环 -->
       <el-tab-pane label="质量闭环" name="quality">
         <div v-if="qualityClosure" class="report-body">
+          <div class="report-tab-toolbar">
+            <el-button size="small" @click="() => doExport('quality')" :loading="exporting === 'quality'">导出 Excel</el-button>
+          </div>
           <el-row :gutter="12" class="metric-row">
             <el-col :span="6" v-for="m in qualityMetrics" :key="m.key">
               <el-card shadow="never" class="metric-card">
@@ -217,6 +229,22 @@
               </div>
             </el-col>
           </el-row>
+          <div v-if="(qualityClosure.quality_trend || []).length" class="section-title">良率趋势（CP / FT）</div>
+          <div v-if="(qualityClosure.quality_trend || []).length" class="trend-chart-wrap">
+            <svg class="trend-chart" :viewBox="`0 0 ${chartW} ${chartH}`" preserveAspectRatio="xMidYMid meet">
+              <line v-for="gy in gridYs" :key="'g'+gy" :x1="padL" :x2="chartW - padR" :y1="gy" :y2="gy" stroke="#eee" stroke-width="1" />
+              <text v-for="(gy, i) in gridYs" :key="'t'+gy" :x="padL - 8" :y="gy + 4" text-anchor="end" font-size="11" fill="#999">{{ 100 - i * 20 }}</text>
+              <polyline :points="cpLinePoints" fill="none" stroke="#409eff" stroke-width="2" />
+              <polyline :points="ftLinePoints" fill="none" stroke="#67c23a" stroke-width="2" />
+              <circle v-for="(p, i) in cpPoints" :key="'c'+i" :cx="p.x" :cy="p.y" r="3" fill="#409eff" />
+              <circle v-for="(p, i) in ftPoints" :key="'f'+i" :cx="p.x" :cy="p.y" r="3" fill="#67c23a" />
+              <text v-for="(p, i) in xLabels" :key="'x'+i" :x="p.x" :y="chartH - padB + 16" text-anchor="middle" font-size="10" fill="#999">{{ p.label }}</text>
+              <g transform="translate(80, 12)">
+                <rect x="0" y="0" width="12" height="3" fill="#409eff" /><text x="18" y="4" font-size="11" fill="#666">CP 良率</text>
+                <rect x="90" y="0" width="12" height="3" fill="#67c23a" /><text x="108" y="4" font-size="11" fill="#666">FT 良率</text>
+              </g>
+            </svg>
+          </div>
           <div class="section-title">质量问题清单（含 CAPA 关闭情况）</div>
           <el-table :data="qualityClosure.issues || []" size="small" height="320">
             <el-table-column prop="issue_no" label="问题编号" width="130" fixed />
@@ -239,10 +267,21 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { getReportChangeCycle, getReportCompleteness, getReportProjectProgress, getReportQualityClosure } from '../api'
+import { ElMessage } from 'element-plus'
+import {
+  exportReportChangeCycle,
+  exportReportCompleteness,
+  exportReportProjectProgress,
+  exportReportQualityClosure,
+  getReportChangeCycle,
+  getReportCompleteness,
+  getReportProjectProgress,
+  getReportQualityClosure,
+} from '../api'
 
 const loading = ref(true)
 const activeTab = ref('completeness')
+const exporting = ref('')
 const completeness = ref<any>(null)
 const changeCycle = ref<any>(null)
 const projectProgress = ref<any>(null)
@@ -311,6 +350,71 @@ async function onTabChange(name: string) {
   else if (name === 'change') await loadChange()
   else if (name === 'project') await loadProject()
   else if (name === 'quality') await loadQuality()
+}
+
+// ---- 良率趋势 SVG 图表 ----
+const chartW = 760
+const chartH = 260
+const padL = 36
+const padR = 16
+const padT = 28
+const padB = 32
+const gridYs = computed(() => {
+  const ys: number[] = []
+  for (let i = 0; i <= 5; i++) {
+    ys.push(padT + (i * (chartH - padT - padB)) / 5)
+  }
+  return ys
+})
+const trendData = computed(() => qualityClosure.value?.quality_trend || [])
+const cpPoints = computed(() => {
+  const data = trendData.value
+  if (!data.length) return []
+  const n = data.length
+  const w = chartW - padL - padR
+  const h = chartH - padT - padB
+  return data.map((d: any, i: number) => ({
+    x: padL + (n === 1 ? w / 2 : (i * w) / (n - 1)),
+    y: padT + h - (Math.max(0, Math.min(100, d.cp || 0)) / 100) * h,
+  }))
+})
+const ftPoints = computed(() => {
+  const data = trendData.value
+  if (!data.length) return []
+  const n = data.length
+  const w = chartW - padL - padR
+  const h = chartH - padT - padB
+  return data.map((d: any, i: number) => ({
+    x: padL + (n === 1 ? w / 2 : (i * w) / (n - 1)),
+    y: padT + h - (Math.max(0, Math.min(100, d.ft || 0)) / 100) * h,
+  }))
+})
+const cpLinePoints = computed(() => cpPoints.value.map((p: any) => `${p.x},${p.y}`).join(' '))
+const ftLinePoints = computed(() => ftPoints.value.map((p: any) => `${p.x},${p.y}`).join(' '))
+const xLabels = computed(() => {
+  const data = trendData.value
+  if (!data.length) return []
+  const n = data.length
+  const w = chartW - padL - padR
+  return data.map((d: any, i: number) => ({
+    x: padL + (n === 1 ? w / 2 : (i * w) / (n - 1)),
+    label: (d.date || '').slice(5),
+  }))
+})
+
+async function doExport(type: string) {
+  exporting.value = type
+  try {
+    if (type === 'completeness') await exportReportCompleteness()
+    else if (type === 'change') await exportReportChangeCycle()
+    else if (type === 'project') await exportReportProjectProgress()
+    else if (type === 'quality') await exportReportQualityClosure()
+    ElMessage.success('导出成功')
+  } catch {
+    ElMessage.error('导出失败')
+  } finally {
+    exporting.value = ''
+  }
 }
 
 async function reloadAll() {
@@ -393,5 +497,21 @@ onMounted(async () => {
 }
 .text-danger {
   color: var(--el-color-danger);
+}
+.report-tab-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.trend-chart-wrap {
+  background: #fafafa;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+.trend-chart {
+  width: 100%;
+  height: 260px;
 }
 </style>
