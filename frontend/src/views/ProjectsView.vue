@@ -5,6 +5,7 @@
       <div class="toolbar-actions">
         <el-input v-model="keyword" placeholder="搜索项目编号/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
         <el-button v-if="can('project')" type="primary" :icon="Plus" @click="openCreate">新建项目</el-button>
+        <el-button v-if="can('project')" type="default" @click="openFromTemplate">从模板创建</el-button>
         <el-button v-if="can('project')" type="default" @click="showTemplateDialog = true">项目模板</el-button>
       </div>
     </div>
@@ -140,6 +141,8 @@
           <el-form-item label="负责人"><UserSelect v-model="taskForm.owner" /></el-form-item>
           <el-form-item label="状态"><el-select v-model="taskForm.status"><el-option label="待处理" value="待处理" /><el-option label="进行中" value="进行中" /><el-option label="已完成" value="已完成" /></el-select></el-form-item>
           <el-form-item label="截止日期"><el-input v-model="taskForm.due_date" placeholder="YYYY-MM-DD" /></el-form-item>
+          <el-form-item label="开始日期"><el-input v-model="taskForm.start_date" placeholder="YYYY-MM-DD" /></el-form-item>
+          <el-form-item label="依赖任务" class="form-wide"><el-input v-model="taskForm.depends_on" placeholder="依赖的任务ID，逗号分隔" /></el-form-item>
         </div>
       </el-form>
       <template #footer>
@@ -205,9 +208,12 @@
         <el-button v-if="can('project')" size="small" type="primary" @click="openCreateTemplate">新增模板</el-button>
       </div>
       <el-table :data="templates">
-        <el-table-column prop="code" label="编码" width="140" />
-        <el-table-column prop="name" label="名称" width="160" />
-        <el-table-column prop="stages" label="阶段定义" min-width="280" />
+        <el-table-column prop="code" label="编码" width="120" />
+        <el-table-column prop="name" label="名称" width="140" />
+        <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip />
+        <el-table-column label="阶段定义" min-width="220">
+          <template #default="{ row }">{{ stagesToText(row.stages) }}</template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="80" />
         <el-table-column label="操作" width="130">
           <template #default="{ row }">
@@ -217,6 +223,50 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+
+    <!-- Template Form Sub-Dialog -->
+    <el-dialog v-model="templateDialogVisible" :title="templateEditingId ? '编辑模板' : '新增模板'" width="720px" append-to-body>
+      <el-form :model="templateForm" label-width="100px">
+        <div class="form-grid">
+          <el-form-item label="编码"><el-input v-model="templateForm.code" /></el-form-item>
+          <el-form-item label="名称"><el-input v-model="templateForm.name" /></el-form-item>
+          <el-form-item label="描述" class="form-wide"><el-input v-model="templateForm.description" type="textarea" :rows="2" /></el-form-item>
+          <el-form-item label="阶段" class="form-wide"><el-input v-model="templateForm.stages" placeholder="概念,设计,流片,验证,试产" /></el-form-item>
+          <el-form-item label="状态"><el-select v-model="templateForm.status"><el-option label="启用" value="启用" /><el-option label="停用" value="停用" /></el-select></el-form-item>
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="templateDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveTemplate">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Create From Template Dialog -->
+    <el-dialog v-model="fromTemplateDialog" title="从模板创建项目" width="640px">
+      <el-form :model="fromTemplateForm" label-width="100px">
+        <div class="form-grid">
+          <el-form-item label="模板" class="form-wide">
+            <el-select v-model="fromTemplateForm.template_id" filterable placeholder="选择模板">
+              <el-option v-for="tpl in templates" :key="tpl.id" :label="`${tpl.code} · ${tpl.name}`" :value="tpl.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="项目编号"><el-input v-model="fromTemplateForm.project_no" /></el-form-item>
+          <el-form-item label="项目名称"><el-input v-model="fromTemplateForm.name" /></el-form-item>
+          <el-form-item label="产品型号">
+            <el-select v-model="fromTemplateForm.product_model" filterable clearable placeholder="选择产品">
+              <el-option v-for="product in products" :key="product.id" :label="product.model" :value="product.model" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="负责人"><UserSelect v-model="fromTemplateForm.owner" /></el-form-item>
+          <el-form-item label="开始日期"><el-input v-model="fromTemplateForm.start_date" placeholder="YYYY-MM-DD" /></el-form-item>
+          <el-form-item label="结束日期"><el-input v-model="fromTemplateForm.end_date" placeholder="YYYY-MM-DD" /></el-form-item>
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="fromTemplateDialog = false">取消</el-button>
+        <el-button type="primary" @click="saveFromTemplate">创建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -225,7 +275,7 @@ import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
 import {
-  advanceProjectPhase, createProject, createProjectDeliverable, createProjectRisk, createProjectTask, createProjectTemplate, deleteProject, deleteProjectDeliverable,
+  advanceProjectPhase, createProject, createProjectDeliverable, createProjectFromTemplate, createProjectRisk, createProjectTask, createProjectTemplate, deleteProject, deleteProjectDeliverable,
   deleteProjectRisk, deleteProjectTask, deleteProjectTemplate, getBoms, getDocuments, getProducts, getProjects, getProjectTemplates, getRoutes, updateProject, updateProjectDeliverable,
   updateProjectRisk, updateProjectTask, updateProjectTemplate,
 } from '../api'
@@ -244,7 +294,7 @@ const form = ref<any>({ project_no: '', name: '', product_model: '', phase: '概
 const taskDialog = ref(false)
 const taskProjectId = ref<number>(0)
 const taskEditingId = ref<number | null>(null)
-const taskForm = ref<any>({ name: '', phase: '概念', owner: '', status: '待处理', due_date: '' })
+const taskForm = ref<any>({ name: '', phase: '概念', owner: '', status: '待处理', due_date: '', start_date: '', depends_on: '' })
 
 const deliverableDialog = ref(false)
 const deliverableProjectId = ref<number>(0)
@@ -263,7 +313,10 @@ const riskForm = ref<any>({ risk_type: '技术', description: '', impact: '中',
 const showTemplateDialog = ref(false)
 const templateDialogVisible = ref(false)
 const templateEditingId = ref<number | null>(null)
-const templateForm = ref<any>({ code: '', name: '', description: '', stages: '["概念","设计","流片","验证","试产"]', status: '启用' })
+const templateForm = ref<any>({ code: '', name: '', description: '', stages: '概念,设计,流片,验证,试产', status: '启用' })
+
+const fromTemplateDialog = ref(false)
+const fromTemplateForm = ref<any>({ template_id: undefined, project_no: '', name: '', product_model: '', owner: '', start_date: '', end_date: '' })
 
 async function load() {
   await loadData()
@@ -293,7 +346,7 @@ async function remove(row: any) {
 function openCreateTask(project: any) {
   taskProjectId.value = project.id
   taskEditingId.value = null
-  taskForm.value = { name: '', phase: project.phase || '概念', owner: currentUser.value?.display_name || '', status: '待处理', due_date: '' }
+  taskForm.value = { name: '', phase: project.phase || '概念', owner: currentUser.value?.display_name || '', status: '待处理', due_date: '', start_date: '', depends_on: '' }
   taskDialog.value = true
 }
 function openEditTask(project: any, t: any) {
@@ -380,8 +433,18 @@ async function removeRisk(r: any) {
   await load()
 }
 
-function openCreateTemplate() { templateEditingId.value = null; templateForm.value = { code: '', name: '', description: '', stages: '["概念","设计","流片","验证","试产"]', status: '启用' }; templateDialogVisible.value = true }
-function openEditTemplate(row: any) { templateEditingId.value = row.id; templateForm.value = { ...row }; templateDialogVisible.value = true }
+function stagesToText(stages: any): string {
+  if (!stages) return ''
+  if (Array.isArray(stages)) return stages.join(',')
+  try {
+    const arr = JSON.parse(stages)
+    return Array.isArray(arr) ? arr.join(',') : String(stages)
+  } catch {
+    return String(stages)
+  }
+}
+function openCreateTemplate() { templateEditingId.value = null; templateForm.value = { code: '', name: '', description: '', stages: '概念,设计,流片,验证,试产', status: '启用' }; templateDialogVisible.value = true }
+function openEditTemplate(row: any) { templateEditingId.value = row.id; templateForm.value = { ...row, stages: stagesToText(row.stages) }; templateDialogVisible.value = true }
 async function saveTemplate() {
   templateEditingId.value ? await updateProjectTemplate(templateEditingId.value, templateForm.value) : await createProjectTemplate(templateForm.value)
   ElMessage.success('模板已保存')
@@ -392,6 +455,21 @@ async function removeTemplate(row: any) {
   await ElMessageBox.confirm('确认删除此模板？', '删除确认', { type: 'warning' })
   await deleteProjectTemplate(row.id)
   ElMessage.success('模板已删除')
+  await load()
+}
+
+function openFromTemplate() {
+  fromTemplateForm.value = { template_id: undefined, project_no: '', name: '', product_model: '', owner: currentUser.value?.display_name || '', start_date: '', end_date: '' }
+  fromTemplateDialog.value = true
+}
+async function saveFromTemplate() {
+  if (!fromTemplateForm.value.template_id) {
+    ElMessage.warning('请选择模板')
+    return
+  }
+  await createProjectFromTemplate(fromTemplateForm.value)
+  ElMessage.success('项目已从模板创建')
+  fromTemplateDialog.value = false
   await load()
 }
 

@@ -116,6 +116,21 @@ export async function getBomWhereUsed(materialCode: string) {
   return data
 }
 
+export async function exportBomExcel(bomId: number) {
+  const response = await client.get(`/api/boms/${bomId}/export`, { responseType: 'blob' })
+  return response
+}
+
+export async function importBomExcel(bomId: number, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await client.post(`/api/boms/${bomId}/import`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+  })
+  return data
+}
+
 export async function getMaterials(params?: { page?: number; page_size?: number; keyword?: string }) {
   const { data } = await client.get('/api/materials', { params })
   return data
@@ -164,6 +179,21 @@ export async function submitDocument(id: number) {
 export async function approveDocument(id: number) {
   const { data } = await client.post(`/api/documents/${id}/approve`)
   return data
+}
+
+export async function uploadDocumentFile(id: number, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await client.post(`/api/documents/${id}/upload`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+  })
+  return data
+}
+
+export async function downloadDocumentFile(id: number) {
+  const response = await client.get(`/api/documents/${id}/download`, { responseType: 'blob' })
+  return response
 }
 
 export async function getRequirements(params?: { page?: number; page_size?: number; keyword?: string }) {
@@ -738,6 +768,11 @@ export async function updateProject(id: number, payload: any) {
 
 export async function deleteProject(id: number) {
   const { data } = await client.delete(`/api/projects/${id}`)
+  return data
+}
+
+export async function createProjectFromTemplate(payload: any) {
+  const { data } = await client.post('/api/projects/from-template', payload)
   return data
 }
 

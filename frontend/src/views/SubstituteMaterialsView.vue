@@ -34,10 +34,16 @@
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑替代料' : '新增替代料'" width="620px">
       <el-form :model="form" label-width="100px">
         <div class="form-grid">
-          <el-form-item label="主物料编码"><el-input v-model="form.material_code" /></el-form-item>
-          <el-form-item label="主物料名称"><el-input v-model="form.material_name" /></el-form-item>
-          <el-form-item label="替代物料编码"><el-input v-model="form.substitute_code" /></el-form-item>
-          <el-form-item label="替代物料名称"><el-input v-model="form.substitute_name" /></el-form-item>
+          <el-form-item label="主物料">
+            <el-select v-model="materialSelect" filterable placeholder="请选择主物料" @change="onMaterialChange">
+              <el-option v-for="m in materials" :key="m.code" :label="`${m.code} - ${m.name}`" :value="m.code" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="替代物料">
+            <el-select v-model="substituteSelect" filterable placeholder="请选择替代物料" @change="onSubstituteChange">
+              <el-option v-for="m in materials" :key="m.code" :label="`${m.code} - ${m.name}`" :value="m.code" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="替代类型"><el-input v-model="form.substitute_type" /></el-form-item>
           <el-form-item label="策略"><el-input v-model="form.strategy" /></el-form-item>
           <el-form-item label="风险等级"><el-select v-model="form.risk_level"><el-option label="高" value="高" /><el-option label="中" value="中" /><el-option label="低" value="低" /></el-select></el-form-item>
@@ -59,7 +65,7 @@
 import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
-import { createSubstituteMaterial, deleteSubstituteMaterial, getSubstituteMaterials, updateSubstituteMaterial } from '../api'
+import { createSubstituteMaterial, deleteSubstituteMaterial, getMaterials, getSubstituteMaterials, updateSubstituteMaterial } from '../api'
 import { useAuth } from '../auth'
 import { useListPage } from '../composables/useListPage'
 
@@ -67,11 +73,36 @@ const { can } = useAuth()
 const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getSubstituteMaterials)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
-const emptyForm = { material_code: '', material_name: '', substitute_code: '', substitute_name: '', substitute_type: '功能替代', strategy: '一对一', risk_level: '中', status: '启用', effective_date: '', expiry_date: '', description: '' }
+const materials = ref<any[]>([])
+const materialSelect = ref('')
+const substituteSelect = ref('')
+const emptyForm = { material_code: '', material_name: '', material_id: null, substitute_code: '', substitute_name: '', substitute_material_id: null, substitute_type: '功能替代', strategy: '一对一', risk_level: '中', status: '启用', effective_date: '', expiry_date: '', description: '' }
 const form = ref<any>({ ...emptyForm })
 
-function openCreate() { editingId.value = null; form.value = { ...emptyForm }; dialogVisible.value = true }
-function openEdit(row: any) { editingId.value = row.id; form.value = { ...row }; dialogVisible.value = true }
+function onMaterialChange(val: string) {
+  const m = materials.value.find((x: any) => x.code === val)
+  if (m) {
+    form.value.material_code = m.code
+    form.value.material_name = m.name
+    form.value.material_id = m.id
+  }
+}
+function onSubstituteChange(val: string) {
+  const m = materials.value.find((x: any) => x.code === val)
+  if (m) {
+    form.value.substitute_code = m.code
+    form.value.substitute_name = m.name
+    form.value.substitute_material_id = m.id
+  }
+}
+function openCreate() { editingId.value = null; form.value = { ...emptyForm }; materialSelect.value = ''; substituteSelect.value = ''; dialogVisible.value = true }
+function openEdit(row: any) {
+  editingId.value = row.id
+  form.value = { ...row }
+  materialSelect.value = row.material_code || ''
+  substituteSelect.value = row.substitute_code || ''
+  dialogVisible.value = true
+}
 async function save() {
   editingId.value ? await updateSubstituteMaterial(editingId.value, form.value) : await createSubstituteMaterial(form.value)
   ElMessage.success('替代料已保存')
@@ -84,5 +115,8 @@ async function remove(row: any) {
   ElMessage.success('替代料已删除')
   await loadData()
 }
-onMounted(async () => { await loadData() })
+onMounted(async () => {
+  materials.value = (await getMaterials({ page_size: 1000 })).items
+  await loadData()
+})
 </script>

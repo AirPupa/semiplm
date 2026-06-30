@@ -277,6 +277,7 @@ class Material(Base):
     category: Mapped[str] = mapped_column(String(50))
     specification: Mapped[str] = mapped_column(String(160))
     supplier: Mapped[str] = mapped_column(String(100))
+    supplier_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_level: Mapped[str] = mapped_column(String(20), default="低")
     lifecycle: Mapped[str] = mapped_column(String(30), default="有效")
 
@@ -338,6 +339,10 @@ class Document(Base):
     owner: Mapped[str] = mapped_column(String(80))
     approval_status: Mapped[str] = mapped_column(String(30))
     updated_at: Mapped[str] = mapped_column(String(30))
+    file_name: Mapped[str] = mapped_column(String(255), default="")
+    file_path: Mapped[str] = mapped_column(String(500), default="")
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    file_type: Mapped[str] = mapped_column(String(100), default="")
 
     product: Mapped["Product"] = relationship(back_populates="documents")
 
@@ -497,6 +502,9 @@ class ProjectTask(Base):
     owner: Mapped[str] = mapped_column(String(80))
     status: Mapped[str] = mapped_column(String(30))
     due_date: Mapped[str] = mapped_column(String(30))
+    start_date: Mapped[str] = mapped_column(String(30), default="")
+    parent_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    depends_on: Mapped[str] = mapped_column(String(200), default="")
 
     project: Mapped["Project"] = relationship(back_populates="tasks")
 
@@ -677,6 +685,8 @@ class SubstituteMaterial(Base):
     material_name: Mapped[str] = mapped_column(String(120))
     substitute_code: Mapped[str] = mapped_column(String(64))
     substitute_name: Mapped[str] = mapped_column(String(120))
+    material_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    substitute_material_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     substitute_type: Mapped[str] = mapped_column(String(40), default="功能替代")
     strategy: Mapped[str] = mapped_column(String(30), default="一对一")
     risk_level: Mapped[str] = mapped_column(String(20), default="中")

@@ -50,7 +50,11 @@
           <el-form-item label="物料编码"><el-input v-model="form.code" /></el-form-item>
           <el-form-item label="物料名称"><el-input v-model="form.name" /></el-form-item>
           <el-form-item label="类别"><el-input v-model="form.category" /></el-form-item>
-          <el-form-item label="供应商"><el-input v-model="form.supplier" /></el-form-item>
+          <el-form-item label="供应商">
+            <el-select v-model="supplierSelect" filterable placeholder="请选择供应商" @change="onSupplierChange">
+              <el-option v-for="s in suppliers" :key="s.code" :label="s.name" :value="s.code" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="风险">
             <el-select v-model="form.risk_level">
               <el-option label="低" value="低" />
@@ -81,7 +85,7 @@
 import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
-import { createMaterial, deleteMaterial, getMaterials, updateMaterial } from '../api'
+import { createMaterial, deleteMaterial, getMaterials, getSuppliers, updateMaterial } from '../api'
 import { useAuth } from '../auth'
 import { useListPage } from '../composables/useListPage'
 
@@ -89,13 +93,24 @@ const { can, refreshSession } = useAuth()
 const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getMaterials)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
-const emptyForm = { code: '', name: '', category: '', specification: '', supplier: '', risk_level: '低', lifecycle: '有效' }
+const suppliers = ref<any[]>([])
+const supplierSelect = ref('')
+const emptyForm = { code: '', name: '', category: '', specification: '', supplier: '', supplier_id: null, risk_level: '低', lifecycle: '有效' }
 const form = ref<any>({ ...emptyForm })
+
+function onSupplierChange(val: string) {
+  const s = suppliers.value.find((x: any) => x.code === val)
+  if (s) {
+    form.value.supplier = s.name
+    form.value.supplier_id = s.id
+  }
+}
 
 function openCreate() {
   if (!can('material')) return
   editingId.value = null
   form.value = { ...emptyForm }
+  supplierSelect.value = ''
   dialogVisible.value = true
 }
 
@@ -103,6 +118,15 @@ function openEdit(row: any) {
   if (!can('material')) return
   editingId.value = row.id
   form.value = { ...row }
+  if (row.supplier_id) {
+    const s = suppliers.value.find((x: any) => x.id === row.supplier_id)
+    supplierSelect.value = s ? s.code : ''
+  } else if (row.supplier) {
+    const s = suppliers.value.find((x: any) => x.name === row.supplier)
+    supplierSelect.value = s ? s.code : ''
+  } else {
+    supplierSelect.value = ''
+  }
   dialogVisible.value = true
 }
 
@@ -128,6 +152,7 @@ async function remove(row: any) {
 
 onMounted(async () => {
   await refreshSession()
+  suppliers.value = (await getSuppliers()).items
   await loadData()
 })
 </script>

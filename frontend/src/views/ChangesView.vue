@@ -1,19 +1,124 @@
 <template>
-  <div class="grid-main" v-loading="loading">
-    <div class="panel list-panel">
-      <div class="toolbar">
-        <div>
-          <strong>工程变更</strong>
-          <span class="muted"> · ECR / ECN / ECA 变更闭环</span>
-        </div>
-        <div class="toolbar-actions">
-          <el-input v-model="keyword" placeholder="搜索变更单号/标题" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
-          <el-button :icon="Operation" @click="openBatchControl">批次控制</el-button>
-          <el-button v-if="can('change')" type="primary" :icon="Plus" @click="openCreate">新建变更</el-button>
-        </div>
+  <div class="panel list-panel" v-loading="loading">
+    <div class="toolbar">
+      <div>
+        <strong>工程变更</strong>
       </div>
-      <div class="list-table-wrap">
-      <el-table :data="items" highlight-current-row @current-change="selectChange" height="100%">
+      <div class="toolbar-actions">
+        <el-input v-model="keyword" placeholder="搜索变更单号/标题" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
+        <el-button :icon="Operation" @click="openBatchControl">批次控制</el-button>
+        <el-button v-if="can('change')" type="primary" :icon="Plus" @click="openCreate">新建变更</el-button>
+      </div>
+    </div>
+    <div class="list-table-wrap">
+      <el-table :data="items" row-key="id" :expand-row-keys="expandedRowKeys" @expand-change="onExpandChange" height="100%">
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <div class="bom-detail-expand">
+              <el-descriptions :column="2" border size="small">
+                <el-descriptions-item label="产品">{{ row.product_model }}</el-descriptions-item>
+                <el-descriptions-item label="负责人">{{ row.owner }}</el-descriptions-item>
+                <el-descriptions-item label="提交日期">{{ row.submitted_at || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="状态">{{ row.status }}</el-descriptions-item>
+                <el-descriptions-item label="变更原因" :span="2">{{ row.reason }}</el-descriptions-item>
+                <el-descriptions-item label="变更前" :span="2">{{ row.before_desc }}</el-descriptions-item>
+                <el-descriptions-item label="变更后" :span="2">{{ row.after_desc }}</el-descriptions-item>
+              </el-descriptions>
+              <div class="section-gap">
+                <div class="toolbar compact-toolbar">
+                  <div class="panel-title">影响分析</div>
+                  <div class="toolbar-actions">
+                    <el-button size="small" :disabled="!can('change') || row.status === '已关闭'" @click="runAnalyze">重新分析</el-button>
+                    <el-button size="small" :disabled="!can('change') || row.status === '已关闭'" @click="openImpactCreate">新增影响</el-button>
+                  </div>
+                </div>
+                <el-table :data="row.impacts" size="small">
+                  <el-table-column prop="type" label="对象" width="100" />
+                  <el-table-column prop="target" label="范围" />
+                  <el-table-column prop="risk" label="风险" width="80" />
+                  <el-table-column prop="action" label="动作" />
+                  <el-table-column label="操作" width="130">
+                    <template #default="{ row: itemRow }">
+                      <el-button size="small" :disabled="!can('change') || row.status === '已关闭'" @click="openImpactEdit(itemRow)">编辑</el-button>
+                      <el-button size="small" type="danger" :disabled="!can('change') || row.status === '已关闭'" @click="removeImpact(itemRow)">删除</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+              <div class="section-gap">
+                <div class="panel-title">审批流程</div>
+                <el-steps direction="vertical" :active="2" finish-status="success">
+                  <el-step v-for="item in row.approvals" :key="item.step" :title="item.step" :description="`${item.approver} · ${item.status} ${item.comment}`" />
+                </el-steps>
+              </div>
+              <div class="section-gap">
+                <div class="toolbar compact-toolbar">
+                  <div class="panel-title">ECN / ECA 执行动作</div>
+                  <div class="toolbar-actions">
+                    <el-button size="small" :disabled="!can('change') || row.status === '已关闭'" @click="openActionCreate">新增动作</el-button>
+                  </div>
+                </div>
+                <el-table :data="row.actions" size="small">
+                  <el-table-column prop="action_no" label="动作编号" width="190" />
+                  <el-table-column prop="action_type" label="动作" width="100" />
+                  <el-table-column prop="target_type" label="对象类型" width="90" />
+                  <el-table-column prop="target_object" label="对象" min-width="180" />
+                  <el-table-column prop="target_version" label="当前版本" width="90" />
+                  <el-table-column prop="effectivity_type" label="生效方式" width="100" />
+                  <el-table-column prop="effectivity_scope" label="生效范围" width="110" />
+                  <el-table-column prop="effective_date" label="生效日期" width="110" />
+                  <el-table-column prop="effective_batch" label="生效批次" width="140" />
+                  <el-table-column prop="generated_object_no" label="生成对象" min-width="160" show-overflow-tooltip />
+                  <el-table-column prop="department" label="部门" width="110" />
+                  <el-table-column prop="owner" label="负责人" width="90" />
+                  <el-table-column prop="status" label="状态" width="90">
+                    <template #default="{ row: itemRow }">
+                      <el-tag size="small" :type="itemRow.status === '进行中' ? 'warning' : itemRow.status === '待处理' ? 'info' : 'success'">
+                        {{ itemRow.status }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="due_date" label="截止" width="110" />
+                  <el-table-column label="操作" width="160">
+                    <template #default="{ row: itemRow }">
+                      <el-button size="small" :disabled="!can('change') || itemRow.status === '已完成'" @click="openActionEdit(itemRow)">编辑</el-button>
+                      <el-button size="small" type="primary" :disabled="!can('change') || itemRow.status === '已完成'" @click="closeAction(itemRow)">关闭</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+              <div class="section-gap">
+                <div class="panel-title">版本归档</div>
+                <el-table :data="revisionArchive" size="small" empty-text="暂无升版记录">
+                  <el-table-column prop="target_type" label="对象类型" width="90" />
+                  <el-table-column prop="source_object" label="来源对象" min-width="180" show-overflow-tooltip />
+                  <el-table-column prop="source_version" label="来源版本" width="90" />
+                  <el-table-column label="生成对象" min-width="170">
+                    <template #default="{ row: itemRow }">
+                      <a v-if="itemRow.generated_url" href="javascript:void(0)" class="archive-link" @click="navigateTo(itemRow.generated_url)">{{ itemRow.generated_object_no }}</a>
+                      <span v-else>{{ itemRow.generated_object_no }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="effectivity_type" label="生效方式" width="100" />
+                  <el-table-column prop="effectivity_scope" label="生效范围" width="110" />
+                  <el-table-column prop="effective_date" label="生效日期" width="110" />
+                  <el-table-column prop="effective_batch" label="生效批次" width="140" />
+                  <el-table-column prop="release_gate_status" label="发布门" width="110">
+                    <template #default="{ row: itemRow }">
+                      <el-tag size="small" :type="itemRow.release_gate_status === '可提交' ? 'success' : 'warning'">{{ itemRow.release_gate_status }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="owner" label="负责人" width="90" />
+                  <el-table-column label="操作" width="80" fixed="right">
+                    <template #default="{ row: itemRow }">
+                      <el-button size="small" @click="showArchiveDetail(itemRow)">详情</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="change_no" label="变更单号" width="180" fixed />
         <el-table-column prop="title" label="标题" min-width="220" />
         <el-table-column prop="product_model" label="型号" width="130" />
@@ -22,122 +127,17 @@
         <el-table-column prop="status" label="状态" width="100" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" :disabled="!can('change') || !['草稿', '已驳回'].includes(row.status)" @click.stop="openEdit(row)">编辑</el-button>
-            <el-button size="small" type="primary" :disabled="!can('change') || !['草稿', '已驳回'].includes(row.status)" @click.stop="submit(row)">提交</el-button>
-            <el-button size="small" type="danger" :disabled="!can('change') || row.status !== '草稿'" @click.stop="remove(row)">删除</el-button>
+            <div class="row-actions">
+              <el-button size="small" :disabled="!can('change') || !['草稿', '已驳回'].includes(row.status)" @click.stop="openEdit(row)">编辑</el-button>
+              <el-button size="small" type="primary" :disabled="!can('change') || !['草稿', '已驳回'].includes(row.status)" @click.stop="submit(row)">提交</el-button>
+              <el-button size="small" type="danger" :disabled="!can('change') || row.status !== '草稿'" @click.stop="remove(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
-      </div>
-      <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
-        <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
-      </div>
     </div>
-    <div class="panel detail-panel">
-      <div class="panel-title">{{ selected?.change_no || '变更详情' }}</div>
-      <template v-if="selected">
-        <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="产品">{{ selected.product_model }}</el-descriptions-item>
-          <el-descriptions-item label="负责人">{{ selected.owner }}</el-descriptions-item>
-          <el-descriptions-item label="提交日期">{{ selected.submitted_at || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ selected.status }}</el-descriptions-item>
-          <el-descriptions-item label="变更原因" :span="2">{{ selected.reason }}</el-descriptions-item>
-          <el-descriptions-item label="变更前" :span="2">{{ selected.before_desc }}</el-descriptions-item>
-          <el-descriptions-item label="变更后" :span="2">{{ selected.after_desc }}</el-descriptions-item>
-        </el-descriptions>
-        <div class="section-gap">
-          <div class="toolbar compact-toolbar">
-            <div class="panel-title">影响分析</div>
-            <div class="toolbar-actions">
-              <el-button size="small" :disabled="!can('change') || selected.status === '已关闭'" @click="runAnalyze">重新分析</el-button>
-              <el-button size="small" :disabled="!can('change') || selected.status === '已关闭'" @click="openImpactCreate">新增影响</el-button>
-            </div>
-          </div>
-          <el-table :data="selected.impacts" size="small">
-            <el-table-column prop="type" label="对象" width="100" />
-            <el-table-column prop="target" label="范围" />
-            <el-table-column prop="risk" label="风险" width="80" />
-            <el-table-column prop="action" label="动作" />
-            <el-table-column label="操作" width="130">
-              <template #default="{ row }">
-                <el-button size="small" :disabled="!can('change') || selected.status === '已关闭'" @click="openImpactEdit(row)">编辑</el-button>
-                <el-button size="small" type="danger" :disabled="!can('change') || selected.status === '已关闭'" @click="removeImpact(row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-        <div class="section-gap">
-          <div class="panel-title">审批流程</div>
-          <el-steps direction="vertical" :active="2" finish-status="success">
-            <el-step v-for="item in selected.approvals" :key="item.step" :title="item.step" :description="`${item.approver} · ${item.status} ${item.comment}`" />
-          </el-steps>
-        </div>
-        <div class="section-gap">
-          <div class="toolbar compact-toolbar">
-            <div class="panel-title">ECN / ECA 执行动作</div>
-            <div class="toolbar-actions">
-              <el-button size="small" :disabled="!can('change') || selected.status === '已关闭'" @click="openActionCreate">新增动作</el-button>
-            </div>
-          </div>
-          <el-table :data="selected.actions" size="small">
-            <el-table-column prop="action_no" label="动作编号" width="190" />
-            <el-table-column prop="action_type" label="动作" width="100" />
-            <el-table-column prop="target_type" label="对象类型" width="90" />
-            <el-table-column prop="target_object" label="对象" min-width="180" />
-            <el-table-column prop="target_version" label="当前版本" width="90" />
-            <el-table-column prop="effectivity_type" label="生效方式" width="100" />
-            <el-table-column prop="effectivity_scope" label="生效范围" width="110" />
-            <el-table-column prop="effective_date" label="生效日期" width="110" />
-            <el-table-column prop="effective_batch" label="生效批次" width="140" />
-            <el-table-column prop="generated_object_no" label="生成对象" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="department" label="部门" width="110" />
-            <el-table-column prop="owner" label="负责人" width="90" />
-            <el-table-column prop="status" label="状态" width="90">
-              <template #default="{ row }">
-                <el-tag size="small" :type="row.status === '进行中' ? 'warning' : row.status === '待处理' ? 'info' : 'success'">
-                  {{ row.status }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="due_date" label="截止" width="110" />
-            <el-table-column label="操作" width="160">
-              <template #default="{ row }">
-                <el-button size="small" :disabled="!can('change') || row.status === '已完成'" @click="openActionEdit(row)">编辑</el-button>
-                <el-button size="small" type="primary" :disabled="!can('change') || row.status === '已完成'" @click="closeAction(row)">关闭</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-        <div class="section-gap">
-          <div class="panel-title">版本归档</div>
-          <el-table :data="revisionArchive" size="small" empty-text="暂无升版记录">
-            <el-table-column prop="target_type" label="对象类型" width="90" />
-            <el-table-column prop="source_object" label="来源对象" min-width="180" show-overflow-tooltip />
-            <el-table-column prop="source_version" label="来源版本" width="90" />
-            <el-table-column label="生成对象" min-width="170">
-              <template #default="{ row }">
-                <a v-if="row.generated_url" href="javascript:void(0)" class="archive-link" @click="navigateTo(row.generated_url)">{{ row.generated_object_no }}</a>
-                <span v-else>{{ row.generated_object_no }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="effectivity_type" label="生效方式" width="100" />
-            <el-table-column prop="effectivity_scope" label="生效范围" width="110" />
-            <el-table-column prop="effective_date" label="生效日期" width="110" />
-            <el-table-column prop="effective_batch" label="生效批次" width="140" />
-            <el-table-column prop="release_gate_status" label="发布门" width="110">
-              <template #default="{ row }">
-                <el-tag size="small" :type="row.release_gate_status === '可提交' ? 'success' : 'warning'">{{ row.release_gate_status }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="owner" label="负责人" width="90" />
-            <el-table-column label="操作" width="80" fixed="right">
-              <template #default="{ row }">
-                <el-button size="small" @click="showArchiveDetail(row)">详情</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-      </template>
+    <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
+      <el-pagination v-model:current-page="pagination.page" v-model:page-size="pagination.pageSize" :total="pagination.total" :page-sizes="[20, 50, 100, 200]" layout="total, sizes, prev, pager, next, jumper" @current-change="onPageChange" @size-change="onSizeChange" />
     </div>
 
     <el-dialog v-model="archiveDialogVisible" title="版本归档详情" width="760px">
@@ -420,6 +420,7 @@ const { can, currentUser, refreshSession } = useAuth()
 const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getChanges)
 const products = ref<any[]>([])
 const selected = ref<any>()
+const expandedRowKeys = ref<number[]>([])
 const revisionArchive = ref<any[]>([])
 const archiveDialogVisible = ref(false)
 const archiveDetail = ref<any>({})
@@ -528,20 +529,32 @@ async function jumpToChange(changeNo: string) {
   const list = items.value || []
   const target = list.find((item) => item.change_no === changeNo)
   if (target) {
-    await selectChange(target)
+    selected.value = target
+    expandedRowKeys.value = [target.id]
+    revisionArchive.value = await getChangeRevisionArchive(target.id)
   }
 }
 
 async function loadChanges(selectedId?: number) {
   await loadData()
   const list = items.value || []
-  selected.value = list.find((item) => item.id === selectedId) || list[0]
-  revisionArchive.value = selected.value ? await getChangeRevisionArchive(selected.value.id) : []
+  const target = selectedId ? list.find((item) => item.id === selectedId) : list[0]
+  selected.value = target || null
+  expandedRowKeys.value = target ? [target.id] : []
+  revisionArchive.value = target ? await getChangeRevisionArchive(target.id) : []
 }
 
-async function selectChange(row: any) {
-  selected.value = row
-  revisionArchive.value = row ? await getChangeRevisionArchive(row.id) : []
+async function onExpandChange(row: any, expandedRows: any[]) {
+  const isExpanded = expandedRows.some((r: any) => r.id === row.id)
+  if (isExpanded) {
+    expandedRowKeys.value = [row.id]
+    selected.value = row
+    revisionArchive.value = await getChangeRevisionArchive(row.id)
+  } else {
+    expandedRowKeys.value = []
+    selected.value = null
+    revisionArchive.value = []
+  }
 }
 
 function openCreate() {

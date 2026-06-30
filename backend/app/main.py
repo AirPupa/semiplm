@@ -1,5 +1,8 @@
-from fastapi import Depends, FastAPI, Header, HTTPException
+import os
+import io
+from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
@@ -155,6 +158,24 @@ def ensure_lightweight_schema() -> None:
         "project_deliverables": {
             "object_type": "VARCHAR(40) DEFAULT ''",
             "object_id": "INTEGER",
+        },
+        "documents": {
+            "file_name": "VARCHAR(255) DEFAULT ''",
+            "file_path": "VARCHAR(500) DEFAULT ''",
+            "file_size": "INTEGER",
+            "file_type": "VARCHAR(100) DEFAULT ''",
+        },
+        "project_tasks": {
+            "start_date": "VARCHAR(30) DEFAULT ''",
+            "parent_id": "INTEGER",
+            "depends_on": "VARCHAR(200) DEFAULT ''",
+        },
+        "materials": {
+            "supplier_id": "INTEGER",
+        },
+        "substitute_materials": {
+            "material_id": "INTEGER",
+            "substitute_material_id": "INTEGER",
         },
     }
     with engine.begin() as conn:
@@ -393,6 +414,7 @@ class MaterialPayload(BaseModel):
     category: str
     specification: str = ""
     supplier: str = ""
+    supplier_id: int | None = None
     risk_level: str = "低"
     lifecycle: str = "有效"
 
@@ -403,6 +425,7 @@ class MaterialUpdatePayload(BaseModel):
     category: str | None = None
     specification: str | None = None
     supplier: str | None = None
+    supplier_id: int | None = None
     risk_level: str | None = None
     lifecycle: str | None = None
 
@@ -970,6 +993,8 @@ class SubstituteMaterialPayload(BaseModel):
     material_name: str
     substitute_code: str
     substitute_name: str
+    material_id: int | None = None
+    substitute_material_id: int | None = None
     substitute_type: str = "功能替代"
     strategy: str = "一对一"
     risk_level: str = "中"
@@ -984,6 +1009,8 @@ class SubstituteMaterialUpdatePayload(BaseModel):
     material_name: str | None = None
     substitute_code: str | None = None
     substitute_name: str | None = None
+    material_id: int | None = None
+    substitute_material_id: int | None = None
     substitute_type: str | None = None
     strategy: str | None = None
     risk_level: str | None = None
@@ -1057,6 +1084,16 @@ class ProjectTemplateUpdatePayload(BaseModel):
     description: str | None = None
     stages: str | None = None
     status: str | None = None
+
+
+class ProjectFromTemplatePayload(BaseModel):
+    template_id: int
+    project_no: str
+    name: str
+    product_model: str = ""
+    owner: str = ""
+    start_date: str = ""
+    end_date: str = ""
 
 
 class ProjectDeliverablePayload(BaseModel):
@@ -1161,6 +1198,9 @@ class ProjectTaskPayload(BaseModel):
     owner: str = ""
     status: str = "待处理"
     due_date: str = ""
+    start_date: str = ""
+    parent_id: int | None = None
+    depends_on: str = ""
 
 
 class ProjectTaskUpdatePayload(BaseModel):
@@ -1169,6 +1209,9 @@ class ProjectTaskUpdatePayload(BaseModel):
     owner: str | None = None
     status: str | None = None
     due_date: str | None = None
+    start_date: str | None = None
+    parent_id: int | None = None
+    depends_on: str | None = None
 
 
 class ProjectPhaseGatePayload(BaseModel):
@@ -1406,8 +1449,8 @@ def serialize_bom(row: models.BomHeader) -> dict:
     }
 
 
-def bom_item_compare_key(item: models.BomItem) -> tuple[str, str]:
-    return (item.material_code, item.process_step or "")
+def bom_item_compare_key(item: models.BomItem) -> tuple[str, str, str]:
+    return (item.material_code, item.process_step or "", item.position or "")
 
 
 def serialize_bom_compare_item(kind: str, item: models.BomItem | None, base: models.BomItem | None = None) -> dict:
@@ -1456,8 +1499,8 @@ def serialize_process_route(row: models.ProcessRoute) -> dict:
 
 
 def ensure_route_editable(route: models.ProcessRoute) -> None:
-    if route.status == "已发布":
-        raise HTTPException(status_code=409, detail="Released process route cannot be modified")
+    if route.status in ("已发布", "审批中"):
+        raise HTTPException(status_code=409, detail=f"Process route in {route.status} status cannot be modified")
 
 
 def validate_process_route_ready(route: models.ProcessRoute) -> None:
@@ -3207,8 +3250,8 @@ def update_bom(bom_id: int, payload: BomHeaderUpdatePayload, db: Session = Depen
     bom = db.query(models.BomHeader).filter(models.BomHeader.id == bom_id).first()
     if not bom:
         raise HTTPException(status_code=404, detail="BOM not found")
-    if bom.status == "已发布":
-        raise HTTPException(status_code=409, detail="Released BOM cannot be edited")
+    if bom.status in ("审批中", "已发布"):
+        raise HTTPException(status_code=409, detail=f"BOM in {bom.status} status cannot be edited")
     if payload.product_id is not None:
         ensure_product_exists(db, payload.product_id)
     next_product_id = payload.product_id if payload.product_id is not None else bom.product_id
@@ -3240,6 +3283,8 @@ def delete_bom(bom_id: int, db: Session = Depends(get_db), _: dict = Depends(req
         raise HTTPException(status_code=404, detail="BOM not found")
     if bom.status == "已发布":
         raise HTTPException(status_code=409, detail="Released BOM cannot be deleted")
+    if bom.status == "审批中":
+        raise HTTPException(status_code=409, detail="BOM in review cannot be deleted")
     db.delete(bom)
     db.commit()
     return {"deleted": True}
@@ -3250,8 +3295,8 @@ def create_bom_item(bom_id: int, payload: BomItemPayload, db: Session = Depends(
     bom = db.query(models.BomHeader).filter(models.BomHeader.id == bom_id).first()
     if not bom:
         raise HTTPException(status_code=404, detail="BOM not found")
-    if bom.status == "已发布":
-        raise HTTPException(status_code=409, detail="Released BOM cannot be edited")
+    if bom.status in ("审批中", "已发布"):
+        raise HTTPException(status_code=409, detail=f"BOM in {bom.status} status cannot be edited")
     data = apply_bom_item_process_binding(db, payload, bom.product_id)
     item = models.BomItem(bom_id=bom_id, parent_id=None, **data)
     db.add(item)
@@ -3265,8 +3310,8 @@ def update_bom_item(item_id: int, payload: BomItemUpdatePayload, db: Session = D
     item = db.query(models.BomItem).options(selectinload(models.BomItem.bom)).filter(models.BomItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="BOM item not found")
-    if item.bom.status == "已发布":
-        raise HTTPException(status_code=409, detail="Released BOM cannot be edited")
+    if item.bom.status in ("审批中", "已发布"):
+        raise HTTPException(status_code=409, detail=f"BOM in {item.bom.status} status cannot be edited")
     data = apply_bom_item_process_binding(db, payload, item.bom.product_id)
     for key, value in data.items():
         setattr(item, key, value)
@@ -3287,6 +3332,17 @@ def transform_bom(bom_id: int, payload: BomTransformPayload, db: Session = Depen
         raise HTTPException(status_code=404, detail="Source BOM not found")
     if source.bom_type not in ["EBOM", "PBOM"] and payload.target_type in ["PBOM", "MBOM"]:
         raise HTTPException(status_code=409, detail="Only EBOM/PBOM can be transformed to downstream BOM")
+    exists = (
+        db.query(models.BomHeader.id)
+        .filter(
+            models.BomHeader.product_id == source.product_id,
+            models.BomHeader.bom_type == payload.target_type,
+            models.BomHeader.version == payload.version,
+        )
+        .first()
+    )
+    if exists:
+        raise HTTPException(status_code=409, detail="Target BOM version already exists for this product and type")
     target = models.BomHeader(
         product_id=source.product_id,
         bom_type=payload.target_type,
@@ -3401,8 +3457,8 @@ def delete_bom_item(item_id: int, db: Session = Depends(get_db), _: dict = Depen
     item = db.query(models.BomItem).options(selectinload(models.BomItem.bom)).filter(models.BomItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="BOM item not found")
-    if item.bom.status == "已发布":
-        raise HTTPException(status_code=409, detail="Released BOM cannot be edited")
+    if item.bom.status in ("审批中", "已发布"):
+        raise HTTPException(status_code=409, detail=f"BOM in {item.bom.status} status cannot be edited")
     db.delete(item)
     db.commit()
     return {"deleted": True}
@@ -3417,6 +3473,8 @@ def submit_bom(bom_id: int, db: Session = Depends(get_db), _: dict = Depends(req
         raise HTTPException(status_code=409, detail="BOM has no items")
     if bom.status == "已发布":
         raise HTTPException(status_code=409, detail="Released BOM cannot be submitted")
+    if bom.status == "审批中":
+        raise HTTPException(status_code=409, detail="BOM is already in review")
     # ECA 生成对象校验：如果 BOM 有 source_bom_id，说明是 ECA 升版生成的草案
     if bom.source_bom_id:
         generated_no = f"{bom.bom_type}-{bom.product.model}-{bom.version}"
@@ -3443,6 +3501,8 @@ def approve_bom(bom_id: int, db: Session = Depends(get_db), _: dict = Depends(re
         raise HTTPException(status_code=404, detail="BOM not found")
     if not bom.items:
         raise HTTPException(status_code=409, detail="BOM has no items")
+    if bom.status not in ("审批中", "已发布"):
+        raise HTTPException(status_code=409, detail="BOM must be submitted for review before approval")
     if bom.source_bom_id:
         generated_no = f"{bom.bom_type}-{bom.product.model}-{bom.version}"
         validate_eca_generated_object_ready(db, "BOM", bom.id, generated_no)
@@ -3467,6 +3527,90 @@ def approve_bom(bom_id: int, db: Session = Depends(get_db), _: dict = Depends(re
     return {"id": bom.id, "status": bom.status, "release_date": bom.release_date, "effective_date": bom.effective_date, "expiry_date": bom.expiry_date, "closed_versions": closed_versions}
 
 
+@app.get("/api/boms/{bom_id}/export")
+def export_bom_excel(bom_id: int, db: Session = Depends(get_db)):
+    from openpyxl import Workbook
+    bom = db.query(models.BomHeader).options(selectinload(models.BomHeader.product), selectinload(models.BomHeader.items)).filter(models.BomHeader.id == bom_id).first()
+    if not bom:
+        raise HTTPException(status_code=404, detail="BOM not found")
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "BOM"
+    ws.append(["BOM编号", f"{bom.bom_type}-{bom.product.model}-{bom.version}"])
+    ws.append(["产品型号", bom.product.model])
+    ws.append(["BOM类型", bom.bom_type])
+    ws.append(["版本", bom.version])
+    ws.append(["状态", bom.status])
+    ws.append(["负责人", bom.owner])
+    ws.append(["生效日期", bom.effective_date])
+    ws.append(["失效日期", bom.expiry_date])
+    ws.append([])
+    ws.append(["物料编码", "物料名称", "分类", "规格", "数量", "单位", "位号", "工序", "替代料", "状态", "生效日期", "失效日期", "有效性备注"])
+    for item in bom.items:
+        ws.append([
+            item.material_code, item.material_name, item.category, item.specification,
+            item.quantity, item.unit, item.position, item.process_step,
+            item.substitute, item.status, item.effective_date, item.expiry_date, item.effectivity_note,
+        ])
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    filename = f"{bom.bom_type}-{bom.product.model}-{bom.version}.xlsx"
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/boms/{bom_id}/import")
+async def import_bom_excel(bom_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), _: dict = Depends(require_permission("bom"))) -> dict:
+    from openpyxl import load_workbook
+    bom = db.query(models.BomHeader).filter(models.BomHeader.id == bom_id).first()
+    if not bom:
+        raise HTTPException(status_code=404, detail="BOM not found")
+    if bom.status == "已发布":
+        raise HTTPException(status_code=409, detail="Released BOM cannot be modified")
+    content = await file.read()
+    wb = load_workbook(io.BytesIO(content), read_only=True)
+    ws = wb.active
+    imported_count = 0
+    for row in ws.iter_rows(min_row=1, values_only=True):
+        if not row or not row[0]:
+            continue
+        if str(row[0]).strip() in ("物料编码", "BOM编号", "产品型号", "BOM类型", "版本", "状态", "负责人", "生效日期", "失效日期"):
+            continue
+        if len(row) < 6:
+            continue
+        material_code = str(row[0]).strip()
+        material_name = str(row[1]).strip() if row[1] else ""
+        category = str(row[2]).strip() if row[2] else ""
+        specification = str(row[3]).strip() if row[3] else ""
+        try:
+            quantity = float(row[4]) if row[4] else 0
+        except (ValueError, TypeError):
+            quantity = 0
+        unit = str(row[5]).strip() if row[5] else ""
+        position = str(row[6]).strip() if len(row) > 6 and row[6] else ""
+        process_step = str(row[7]).strip() if len(row) > 7 and row[7] else ""
+        substitute = str(row[8]).strip() if len(row) > 8 and row[8] else ""
+        status = str(row[9]).strip() if len(row) > 9 and row[9] else "有效"
+        effective_date = str(row[10]).strip() if len(row) > 10 and row[10] else ""
+        expiry_date = str(row[11]).strip() if len(row) > 11 and row[11] else ""
+        effectivity_note = str(row[12]).strip() if len(row) > 12 and row[12] else ""
+        item = models.BomItem(
+            bom_id=bom_id, material_code=material_code, material_name=material_name,
+            category=category, specification=specification, quantity=quantity, unit=unit,
+            position=position, process_step=process_step, substitute=substitute,
+            status=status, effective_date=effective_date, expiry_date=expiry_date,
+            effectivity_note=effectivity_note,
+        )
+        db.add(item)
+        imported_count += 1
+    db.commit()
+    return {"imported": imported_count, "bom_id": bom_id}
+
+
 @app.get("/api/materials")
 def materials(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
     q = db.query(models.Material)
@@ -3477,7 +3621,7 @@ def materials(page: int = 1, page_size: int = 20, keyword: str = "", db: Session
     rows = q.order_by(models.Material.category, models.Material.code).offset((page - 1) * page_size).limit(page_size).all()
     return {
         "items": [
-            {"id": row.id, "code": row.code, "name": row.name, "category": row.category, "specification": row.specification, "supplier": row.supplier, "risk_level": row.risk_level, "lifecycle": row.lifecycle}
+            {"id": row.id, "code": row.code, "name": row.name, "category": row.category, "specification": row.specification, "supplier": row.supplier, "supplier_id": row.supplier_id, "risk_level": row.risk_level, "lifecycle": row.lifecycle}
             for row in rows
         ],
         "total": total, "page": page, "page_size": page_size,
@@ -3497,6 +3641,7 @@ def create_material(payload: MaterialPayload, db: Session = Depends(get_db), _: 
         "category": material.category,
         "specification": material.specification,
         "supplier": material.supplier,
+        "supplier_id": material.supplier_id,
         "risk_level": material.risk_level,
         "lifecycle": material.lifecycle,
     }
@@ -3517,6 +3662,7 @@ def update_material(material_id: int, payload: MaterialUpdatePayload, db: Sessio
         "category": material.category,
         "specification": material.specification,
         "supplier": material.supplier,
+        "supplier_id": material.supplier_id,
         "risk_level": material.risk_level,
         "lifecycle": material.lifecycle,
     }
@@ -3545,7 +3691,7 @@ def documents(page: int = 1, page_size: int = 20, keyword: str = "", db: Session
     rows = q.order_by(models.Document.id).offset((page - 1) * page_size).limit(page_size).all()
     return {
         "items": [
-            {"id": row.id, "doc_no": row.doc_no, "title": row.title, "category": row.category, "version": row.version, "status": row.status, "approval_status": row.approval_status, "owner": row.owner, "updated_at": row.updated_at, "product_model": row.product.model, "product_id": row.product_id}
+            {"id": row.id, "doc_no": row.doc_no, "title": row.title, "category": row.category, "version": row.version, "status": row.status, "approval_status": row.approval_status, "owner": row.owner, "updated_at": row.updated_at, "product_model": row.product.model, "product_id": row.product_id, "file_name": row.file_name, "file_size": row.file_size, "file_type": row.file_type}
             for row in rows
         ],
         "total": total, "page": page, "page_size": page_size,
@@ -3571,6 +3717,9 @@ def create_document(payload: DocumentPayload, db: Session = Depends(get_db), _: 
         "updated_at": document.updated_at,
         "product_model": document.product.model,
         "product_id": document.product_id,
+        "file_name": document.file_name,
+        "file_size": document.file_size,
+        "file_type": document.file_type,
     }
 
 
@@ -3579,6 +3728,8 @@ def update_document(document_id: int, payload: DocumentUpdatePayload, db: Sessio
     document = db.query(models.Document).options(selectinload(models.Document.product)).filter(models.Document.id == document_id).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+    if document.status in ("审批中", "已发布"):
+        raise HTTPException(status_code=409, detail=f"Document in {document.status} status cannot be edited")
     if payload.product_id is not None:
         ensure_product_exists(db, payload.product_id)
     update_model(document, payload)
@@ -3596,6 +3747,9 @@ def update_document(document_id: int, payload: DocumentUpdatePayload, db: Sessio
         "updated_at": document.updated_at,
         "product_model": document.product.model,
         "product_id": document.product_id,
+        "file_name": document.file_name,
+        "file_size": document.file_size,
+        "file_type": document.file_type,
     }
 
 
@@ -3606,6 +3760,8 @@ def delete_document(document_id: int, db: Session = Depends(get_db), _: dict = D
         raise HTTPException(status_code=404, detail="Document not found")
     if document.status == "已发布":
         raise HTTPException(status_code=409, detail="Released document cannot be deleted")
+    if document.status == "审批中":
+        raise HTTPException(status_code=409, detail="Document in review cannot be deleted")
     db.delete(document)
     db.commit()
     return {"deleted": True}
@@ -3618,6 +3774,8 @@ def submit_document(document_id: int, db: Session = Depends(get_db), _: dict = D
         raise HTTPException(status_code=404, detail="Document not found")
     if document.status == "已发布":
         raise HTTPException(status_code=409, detail="Released document cannot be submitted")
+    if document.status == "审批中":
+        raise HTTPException(status_code=409, detail="Document is already in review")
     # ECA 生成对象校验：检查文档是否由 ECA 动作生成
     validate_eca_generated_object_ready(db, "文档", document.id, document.doc_no)
     document.status = "审批中"
@@ -3642,6 +3800,8 @@ def approve_document(document_id: int, db: Session = Depends(get_db), _: dict = 
     document = db.query(models.Document).options(selectinload(models.Document.product)).filter(models.Document.id == document_id).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+    if document.status not in ("审批中", "已发布"):
+        raise HTTPException(status_code=409, detail="Document must be submitted for review before approval")
     validate_eca_generated_object_ready(db, "文档", document.id, document.doc_no)
     document.status = "已发布"
     document.approval_status = "已签核"
@@ -3657,6 +3817,50 @@ def approve_document(document_id: int, db: Session = Depends(get_db), _: dict = 
     )
     db.commit()
     return {"id": document.id, "status": document.status, "approval_status": document.approval_status, "updated_at": document.updated_at}
+
+
+FILE_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "files")
+
+
+@app.post("/api/documents/{document_id}/upload")
+async def upload_document_file(document_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), _: dict = Depends(require_permission("document"))) -> dict:
+    document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if document.status == "已发布":
+        raise HTTPException(status_code=409, detail="Released document cannot be modified")
+    if document.status == "审批中":
+        raise HTTPException(status_code=409, detail="Document in review cannot be modified")
+    os.makedirs(FILE_UPLOAD_DIR, exist_ok=True)
+    file_content = await file.read()
+    file_size = len(file_content)
+    safe_name = f"{document_id}_{file.filename}"
+    file_path = os.path.join(FILE_UPLOAD_DIR, safe_name)
+    with open(file_path, "wb") as f:
+        f.write(file_content)
+    document.file_name = file.filename
+    document.file_path = file_path
+    document.file_size = file_size
+    document.file_type = file.content_type or ""
+    document.updated_at = today_text()
+    db.commit()
+    return {"id": document.id, "file_name": document.file_name, "file_size": document.file_size, "file_type": document.file_type}
+
+
+@app.get("/api/documents/{document_id}/download")
+def download_document_file(document_id: int, db: Session = Depends(get_db)):
+    document = db.query(models.Document).filter(models.Document.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not document.file_path or not os.path.exists(document.file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    with open(document.file_path, "rb") as f:
+        content = f.read()
+    return Response(
+        content=content,
+        media_type=document.file_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{document.file_name}"'},
+    )
 
 
 @app.get("/api/requirements")
@@ -4422,6 +4626,8 @@ def submit_process_route(route_id: int, payload: ProcessRouteActionPayload, db: 
     validate_process_route_ready(route)
     if route.status == "已发布":
         raise HTTPException(status_code=409, detail="Released process route cannot be submitted")
+    if route.status == "审批中":
+        raise HTTPException(status_code=409, detail="Process route is already in review")
     # ECA 生成对象校验：如果工艺路线有 source_route_id，说明是 ECA 升版生成的草案
     if route.source_route_id:
         validate_eca_generated_object_ready(db, "工艺路线", route.id, route.route_no)
@@ -4442,6 +4648,8 @@ def approve_process_route(route_id: int, payload: ProcessRouteActionPayload, db:
     if not route:
         raise HTTPException(status_code=404, detail="Process route not found")
     validate_process_route_ready(route)
+    if route.status not in ("审批中", "已发布"):
+        raise HTTPException(status_code=409, detail="Process route must be submitted for review before approval")
     if route.source_route_id:
         validate_eca_generated_object_ready(db, "工艺路线", route.id, route.route_no)
     route.status = "已发布"
@@ -4547,8 +4755,8 @@ def submit_change(change_id: int, db: Session = Depends(get_db), _: dict = Depen
     change = db.query(models.Change).options(selectinload(models.Change.product), selectinload(models.Change.impacts), selectinload(models.Change.approvals)).filter(models.Change.id == change_id).first()
     if not change:
         raise HTTPException(status_code=404, detail="Change not found")
-    if change.status == "已关闭":
-        raise HTTPException(status_code=409, detail="Closed change cannot be submitted")
+    if change.status not in ("草稿", "已驳回"):
+        raise HTTPException(status_code=409, detail=f"Change in {change.status} status cannot be submitted")
     analyze_change_impacts(db, change)
     change.status = "审批中"
     change.submitted_at = change.submitted_at or today_text()
@@ -4683,6 +4891,8 @@ def update_change_action(action_id: int, payload: ChangeActionUpdatePayload, db:
     action = db.query(models.ChangeAction).filter(models.ChangeAction.id == action_id).first()
     if not action:
         raise HTTPException(status_code=404, detail="Change action not found")
+    if action.status == "已完成":
+        raise HTTPException(status_code=409, detail="Completed action cannot be edited")
     update_model(action, payload)
     validate_change_action_target(db, action)
     commit_or_409(db, "Change action number already exists")
@@ -4697,6 +4907,10 @@ def close_change_action(action_id: int, payload: ChangeActionClosePayload, db: S
         raise HTTPException(status_code=404, detail="Change action not found")
     if action.status == "已完成":
         raise HTTPException(status_code=409, detail="ECA action is already closed")
+
+    change = db.query(models.Change).filter(models.Change.id == action.change_id).first()
+    if change and change.status != "执行中":
+        raise HTTPException(status_code=409, detail=f"Change is in {change.status} status, actions can only be closed when change is executing")
 
     # 批次一致性校验：同一变更中相同批次的所有 ECA 动作必须使用一致格式
     if "批次" in (action.effectivity_type or ""):
@@ -5512,7 +5726,7 @@ def substitute_materials(page: int = 1, page_size: int = 20, keyword: str = "", 
         )
     total = q.count()
     rows = q.order_by(models.SubstituteMaterial.material_code).offset((page - 1) * page_size).limit(page_size).all()
-    return {"items": [{"id": r.id, "material_code": r.material_code, "material_name": r.material_name, "substitute_code": r.substitute_code, "substitute_name": r.substitute_name, "substitute_type": r.substitute_type, "strategy": r.strategy, "risk_level": r.risk_level, "status": r.status, "effective_date": r.effective_date, "expiry_date": r.expiry_date, "description": r.description} for r in rows], "total": total, "page": page, "page_size": page_size}
+    return {"items": [{"id": r.id, "material_code": r.material_code, "material_name": r.material_name, "substitute_code": r.substitute_code, "substitute_name": r.substitute_name, "material_id": r.material_id, "substitute_material_id": r.substitute_material_id, "substitute_type": r.substitute_type, "strategy": r.strategy, "risk_level": r.risk_level, "status": r.status, "effective_date": r.effective_date, "expiry_date": r.expiry_date, "description": r.description} for r in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @app.post("/api/substitute-materials", status_code=201)
@@ -5521,10 +5735,7 @@ def create_substitute_material(payload: SubstituteMaterialPayload, db: Session =
     db.add(row)
     db.commit()
     db.refresh(row)
-    return {"id": row.id}
-
-
-@app.put("/api/substitute-materials/{row_id}")
+    return {"id": row.id, "material_id": row.material_id, "substitute_material_id": row.substitute_material_id}
 def update_substitute_material(row_id: int, payload: SubstituteMaterialUpdatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("material"))) -> dict:
     row = db.query(models.SubstituteMaterial).filter(models.SubstituteMaterial.id == row_id).first()
     if not row:
@@ -5686,6 +5897,46 @@ def delete_project_template(template_id: int, db: Session = Depends(get_db), _: 
     return {"ok": True}
 
 
+@app.post("/api/projects/from-template", status_code=201)
+def create_project_from_template(payload: ProjectFromTemplatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("project"))) -> dict:
+    import json
+    template = db.query(models.ProjectTemplate).filter(models.ProjectTemplate.id == payload.template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    try:
+        stages = json.loads(template.stages) if template.stages else ["概念", "设计", "流片", "验证", "试产"]
+    except (json.JSONDecodeError, TypeError):
+        stages = ["概念", "设计", "流片", "验证", "试产"]
+    first_phase = stages[0] if stages else "概念"
+    project = models.Project(
+        project_no=payload.project_no,
+        name=payload.name,
+        product_model=payload.product_model,
+        phase=first_phase,
+        progress=0,
+        owner=payload.owner,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        risk_level="低",
+    )
+    db.add(project)
+    commit_or_409(db, "Project number already exists")
+    db.refresh(project)
+    for stage in stages:
+        task = models.ProjectTask(
+            project_id=project.id,
+            name=f"{stage}阶段任务",
+            phase=stage,
+            owner=payload.owner,
+            status="待处理" if stage != first_phase else "进行中",
+            due_date="",
+            start_date=payload.start_date if stage == first_phase else "",
+        )
+        db.add(task)
+    db.commit()
+    return {"id": project.id, "project_no": project.project_no, "phase": project.phase, "tasks_created": len(stages)}
+
+
 @app.get("/api/projects/{project_id}/deliverables")
 def project_deliverables(project_id: int, db: Session = Depends(get_db)) -> list[dict]:
     ensure_project_exists(db, project_id)
@@ -5767,7 +6018,7 @@ PROJECT_PHASES = ["概念", "设计", "流片", "验证", "试产", "量产导�
 def project_tasks(project_id: int, db: Session = Depends(get_db)) -> list[dict]:
     ensure_project_exists(db, project_id)
     rows = db.query(models.ProjectTask).filter(models.ProjectTask.project_id == project_id).order_by(models.ProjectTask.id).all()
-    return [{"id": r.id, "name": r.name, "phase": r.phase, "owner": r.owner, "status": r.status, "due_date": r.due_date} for r in rows]
+    return [{"id": r.id, "name": r.name, "phase": r.phase, "owner": r.owner, "status": r.status, "due_date": r.due_date, "start_date": r.start_date, "parent_id": r.parent_id, "depends_on": r.depends_on} for r in rows]
 
 
 @app.post("/api/projects/{project_id}/tasks", status_code=201)
