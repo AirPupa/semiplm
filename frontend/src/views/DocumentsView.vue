@@ -9,6 +9,11 @@
     </div>
     <div class="list-table-wrap">
       <el-table :data="items" height="100%">
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <AttachmentPanel object-type="Document" :object-id="row.id" :can-edit="can('document') && row.status !== '已发布'" />
+          </template>
+        </el-table-column>
         <el-table-column prop="doc_no" label="文档编号" width="170" fixed />
         <el-table-column prop="title" label="文档名称" min-width="200" />
         <el-table-column prop="product_model" label="产品型号" width="120" />
@@ -121,6 +126,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
 import { approveDocument, createDocument, deleteDocument, downloadDocumentFile, getDocumentVersionHistory, getDocuments, getProducts, submitDocument, updateDocument, uploadDocumentFile } from '../api'
 import { useAuth } from '../auth'
+import AttachmentPanel from '../components/AttachmentPanel.vue'
 import UserSelect from '../components/UserSelect.vue'
 import { useListPage } from '../composables/useListPage'
 

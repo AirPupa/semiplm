@@ -26,6 +26,11 @@
           <el-button v-if="can('quality')" type="primary" :icon="Plus" @click="openCreateIssue">新增问题</el-button>
         </div>
         <el-table :data="quality.issues || []" height="560">
+          <el-table-column type="expand">
+            <template #default="{ row }">
+              <AttachmentPanel object-type="QualityIssue" :object-id="row.id" :can-edit="can('quality') && row.status !== '已关闭'" />
+            </template>
+          </el-table-column>
           <el-table-column prop="issue_no" label="问题编号" width="120" fixed />
           <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
           <el-table-column prop="product_model" label="型号" width="120" />
@@ -195,6 +200,7 @@ import {
   deleteQualityReport, getQuality, getQualityCAPAs, getQualityReports, triggerEcrFromIssue, updateQualityCAPA, updateQualityIssue, updateQualityReport,
 } from '../api'
 import { useAuth } from '../auth'
+import AttachmentPanel from '../components/AttachmentPanel.vue'
 import UserSelect from '../components/UserSelect.vue'
 
 const loading = ref(true)

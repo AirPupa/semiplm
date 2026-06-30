@@ -325,5 +325,6 @@
 - 已完成：文件存储落地第一轮。新增通用 Attachment 模型与附件 API（列表、上传、下载、删除），文件落盘到后端 `data/files`；新增通用 `AttachmentPanel.vue` 组件，并接入 BOM、工程变更、项目管理展开详情区，业务对象可直接挂载附件元数据和文件下载。
 - 已完成：系统参数独立页。后端系统参数列表搜索扩展到参数键/值/分组/说明；前端从 FoundationConfigView 拆出 `SystemParametersView.vue`，新增 `/admin/system-parameters` 路由和基础平台菜单入口，按列表页标准支持服务端搜索、分页、新增、编辑、删除。FoundationConfigView 仅保留编码规则、分类属性、生命周期、数据字典，减少“大配置页”混杂。
 - 已完成：报表快照第一轮。新增 ReportSnapshot 模型和报表快照 API（列表、按类型筛选、生成当前快照），快照保存报表类型、名称、生成时间/人员、摘要 JSON 和完整 payload JSON；ReportsView 顶部新增“生成当前快照”和“快照历史”入口。seed.py 新增 `REPORT_SNAPSHOT_CRON` 系统参数作为后续 Linux cron/应用调度接入配置。
-- 下一步：附件能力继续接入文档、需求、质量等对象，并补充权限/审计细化；报表快照后续可接真实后台定时任务。
+- 已完成：附件接入扩展。通用 AttachmentPanel 继续接入文档库、需求规格和质量问题详情/展开区；文档已发布、质量问题已关闭时禁用附件编辑，保留下载能力。
+- 下一步：附件权限/审计细化；报表快照后续可接真实后台定时任务。
 

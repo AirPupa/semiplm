@@ -98,6 +98,7 @@
                   </el-tabs>
                 </template>
               </div>
+              <AttachmentPanel object-type="Requirement" :object-id="row.id" :can-edit="can('requirement')" />
             </div>
           </template>
         </el-table-column>
@@ -167,6 +168,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
 import { createRequirement, deleteRequirement, getProducts, getRequirementTrace, getRequirements, updateRequirement } from '../api'
 import { useAuth } from '../auth'
+import AttachmentPanel from '../components/AttachmentPanel.vue'
 import UserSelect from '../components/UserSelect.vue'
 import { useListPage } from '../composables/useListPage'
 
