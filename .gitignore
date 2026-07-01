@@ -12,6 +12,7 @@ htmlcov/
 
 # Local runtime data
 backend/uploads/
+backend/data/
 *.log
 *.pid
 

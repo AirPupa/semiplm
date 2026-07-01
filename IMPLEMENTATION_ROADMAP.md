@@ -65,16 +65,22 @@
 3. 前端硬编码枚举：项目阶段/风险等级/交付物状态/变更类型/严重度/优先级等前后端各写一份。
 4. 数据字典不完整：缺变更类型/严重度/项目阶段/优先级/交付物类型/风险类型等。
 
-### 第一轮：删库重建 + 生产模拟数据（最高优先级）
+### 第一轮：数据制品构建 + 生产模拟数据（最高优先级）
 
 **操作步骤：**
-1. 停后端
-2. 删除 `backend/semiplm.db`（文件存储 `backend/data/files/` 不动）
-3. 重写 `backend/app/seed.py`
-4. 重启后端，seed 自动执行
-5. 验证各页面数据填充效果
+1. 停后端（避免 Windows 文件锁占用 .db）
+2. 执行 `python -m app.build_db --all` 生成两个数据制品
+3. 重启后端，默认连接 `backend/semiplm_demo.db`（开发态）
+4. 验证各页面数据填充效果
 
-**seed.py 重写要点：**
+**数据制品说明：**
+
+| 文件 | 内容 | 用途 |
+| --- | --- | --- |
+| `backend/semiplm_clean.db` | 建表 + admin + 角色/数据字典/系统参数等主数据 | 生产部署起点 |
+| `backend/semiplm_demo.db` | clean + 5 产品/三层 BOM/40 文档/19 变更/5 项目/6 流程待办/集成队列等业务演示数据 | 开发演示、页面验收 |
+
+`backend/app/build_db.py` 是 CLI 构建入口，**不在启动时执行**。启动流程（`backend/app/main.py`）只跑 `create_all + ensure_lightweight_schema + ensure_admin`，不灌任何业务/主数据。
 
 #### 用户（7 个真实用户，删掉虚拟用户）
 | username | display_name | role | department |
@@ -164,33 +170,47 @@ PD-1550-10G / VCSEL-940-3W / DFB-1310-25G / LED-MICRO-RGB / SiPh-MZM-400G
 - [ ] 报表有数据可导出
 - [ ] 日历有任务可显示
 
-### 第二轮：数据字典驱动前端（数据跑通后）
+### 第二轮：数据字典驱动前端（已完成）
 
 **目标：** 前端不再硬编码枚举，所有下拉选项从数据字典 API 读取。
 
-**改造范围（按文件）：**
-1. `ProjectsView.vue` - 阶段/风险等级/交付物状态/任务状态
-2. `BomView.vue` - BOM 类型/状态
-3. `DocumentsView.vue` - 文档状态/签核状态/分类
-4. `ChangesView.vue` - 变更类型/状态/优先级
-5. `QualityView.vue` - 严重度/问题状态
-6. `WorkbenchView.vue` - 通知动作类型
-7. `ProductsView.vue` - 生命周期/工艺平台/晶圆尺寸/封装形式
-8. `MaterialsView.vue` - 物料类别/风险等级/生命周期
-9. 其他 views 按需
+**已改造范围：**
+- `ProjectsView.vue` - 阶段/风险等级/交付物状态/任务状态/风险类型
+- `BomView.vue` - BOM 类型/状态/生效方式/转换目标类型
+- `DocumentsView.vue` - 文档分类/文件状态/签核状态/接收类型
+- `ChangesView.vue` - 变更类型/状态/优先级/影响对象/ECA 动作/目标对象/生效方式/ECA 状态
+- `QualityView.vue` - 严重度/问题状态/CAPA 状态/质量报告状态
+- `WorkbenchView.vue` - 通知动作类型
+- `ProductsView.vue` - 生命周期/工艺平台/晶圆尺寸/封装形式
+- `MaterialsView.vue` - 物料类别/风险等级/生命周期
+- `SubstituteMaterialsView.vue` - 替代类型/替代策略/风险等级/状态
+- `IntegrationsView.vue` - 集成系统/集成状态
+- `AuditLogView.vue` - 操作动作
+- `PRProblemView.vue` - 问题类型/严重度/来源/状态
+- `SuppliersView.vue` - 供应商类型/风险等级/状态
 
 **实现方式：**
-- 新增 `composables/useDictionary.ts`，封装字典 API 调用与缓存
-- 各 view 在 setup 时按需 `useDictionary('DICT_PROJECT_PHASE')` 获取选项
-- 标签颜色映射改为字典配置或 computed 映射表
+- `composables/useDictionary.ts` 封装字典 API 调用与 module 级缓存
+- 各 view 在 setup 时按需 `useDictionary('DICT_XXX')` 获取选项
+- 标签颜色映射改为 computed 映射表
 
-### 第三轮：UI 布局整改（最后）
+**剩余硬编码：** 基础配置/管理类页面（用户组织/编码规则/流程配置/工艺参数类型/系统参数分类）以及少量技术枚举，按实际验收情况逐步清理。
+
+### 第三轮：UI 布局验收（当前重点）
+
+**目标：** 项目已从「从零开发」进入「验收、固化、清债」阶段，先启动前后端，用页面逐项验收数据与字典改造效果，再修复真实可用性问题，而非继续加新功能。
+
+**验收清单：**
+1. 数据库构建：`python -m app.build_db --all` 稳定生成 `semiplm_clean.db` + `semiplm_demo.db`
+2. 启动后端 + 前端，确认默认连接 `semiplm_demo.db`
+3. 按第一轮验证清单逐项过页面（工作台/BOM/项目/文档/变更/质量/集成/报表）
+4. 重点检查：表格密度、卡片高度、操作列溢出、弹窗表单对齐、横向滚动、排序真实生效
 
 **已知问题：**
 1. 工作台 dashboard 卡片高度不齐 → CSS Grid 严格定行高
 2. 表格在卡片内塌陷 → `flex: 1 + min-height: 0` 防塌陷
 3. 弹窗表单对齐 → 已修复 .form-grid 全控件 width:100%
-4. 操作列按钮过多溢出 → 已精简 ProjectsView 操作列
+4. 操作列按钮过多溢出 → 已精简 DocumentsView 操作列，核心平铺 + 更多下拉
 
 **待检查页面：**
 - DashboardView（研发驾驶舱）
