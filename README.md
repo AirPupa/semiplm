@@ -1,6 +1,6 @@
-# SemiPLM 光电芯片制造 PLM
+# SemiPLM 半导体产品定义 PLM
 
-SemiPLM 是面向光电芯片制造企业的轻量级单机 PLM。目标不是演示玩具，而是按武汉睿码功能清单为主线，参考鼎捷 PLM 的成熟做法，逐步实现可落地的产品、文档、研发物料、设计 BOM、工艺、变更、项目、质量、权限和外部系统集成闭环。
+SemiPLM 是面向半导体制造企业的轻量级单机 PLM。当前产品方向已根据现有 MES 制造建模页面修正：PLM 不复刻 MES 全部菜单，而是负责产品定义、工艺流程、用料表、变更审批和 MES 同步包，结构对齐 MES 制造建模以便发布后同步。MES 继续负责生产执行、设备运行态、设备配方主体、Lot/Wafer 过站和现场消耗。
 
 ## 当前技术栈
 
@@ -65,9 +65,25 @@ SEMIPLM_DATABASE_URL=sqlite:////data/semiplm.db
 
 - 产品级规则以 `PRODUCT_SPEC.md` 为准，覆盖产品边界、业务对象、状态流转、主数据、权限、接口契约、页面交互、文件附件和集成队列。
 - 当前业务范围按单公司、单工厂、单组织管理；部门仅作为用户属性、流程路由和统计维度。
-- 研发数据必须真实可 CRUD，不能只做静态页面；BOM、文档、产品、版本、变更、项目、质量之间要能互相追溯。
+- 研发数据必须真实可 CRUD，不能只做静态页面；产品、工艺流程、用料表、文档、变更、项目、质量之间要能互相追溯。
+- MES 对接以产品建模为主线：ProductDef 基础信息、工艺流程（含工序/制程内容/参数/量测/QTime/防污染/动作/分支）、BOM 用料表、ECN 生效和同步结果回写。8 模块挂在工艺流程详情页，不单独建菜单。
+- 工艺流程是 PLM 主控源头，发布后同步给 MES；标准工序、工艺阶段、工艺能力（ProcessCapability）、工艺配方（Recipe）、设备类型（EquipmentType）和设备能力（EquipmentCapability，按 equipmentTypeName 改造）为 PLM 主控设计层对象。设备配方（EquipmentRecipe）、设备配方参数（EquipmentRecipeParam）、炉管配方（FurnaceRecipe）、物理设备实例、原因码、工厂区域等仍属 MES 执行层或受控引用数据，PLM 只引用、校验、对账。
 - MES/ERP/QMS 对接先做配置、同步队列、同步记录、状态回写预留，不先做复杂工业 CAD/EDA 集成。
 - UI 以紧凑商用后台风格为准，Element Plus 与 Arco 可在过渡期并存；不要为了迁移组件库破坏业务页密度和可用性。
+
+## 文档权威层级
+
+根目录只保留当前开发需要的 7 个文档：
+
+1. `README.md`：启动、交接入口和最高层原则。
+2. `PRODUCT_SPEC.md`：产品边界、页面/API/状态/权限的通用约束。
+3. `IMPLEMENTATION_ROADMAP.md`：当前进度、下一步和验收节奏。
+4. `PHASE2_DEV_PLAN_V2.md`：二期 MES Template V1.2 改造的详细方案。
+5. `MES_SYNC_STRATEGY.md`：MES 反向调研记录；若与 V2 冲突，以 V2 为准。
+6. `MENU_ARCHITECTURE.md`：当前菜单和能力归属。
+7. `FILE_INDEX.md`：按业务域定位代码文件。
+
+历史蓝图、旧架构、旧功能清单、旧二期计划和 UI 迁移说明已归档到 `docs/archive/`，只作为背景材料，不作为当前开发依据。
 
 ## 交接阅读顺序
 
@@ -75,15 +91,9 @@ SEMIPLM_DATABASE_URL=sqlite:////data/semiplm.db
 
 1. `PRODUCT_SPEC.md`：产品级通用规范和功能完成标准。
 2. `IMPLEMENTATION_ROADMAP.md`：当前基线和下一步计划。
-3. `FILE_INDEX.md`：按业务功能定位要读的后端 router、前端 api 和页面文件。
-4. `MENU_ARCHITECTURE.md`：确认菜单边界和功能归属。
-5. `FUNCTION_LIST.md`：确认能力范围、一期缺口和暂缓能力。
-
-需要理解产品方向时再读：
-
-- `PLM_BLUEPRINT.md`：产品蓝图和行业化原则。
-- `PLM_ARCHITECTURE.md`：架构边界和对象关系。
-- `ARCO_MIGRATION_PLAN.md`：UI 风格规范与页面密度约束。
+3. `PHASE2_DEV_PLAN_V2.md`：二期当前主线和字段归属。
+4. `FILE_INDEX.md`：按业务功能定位要读的后端 router、前端 api 和页面文件。
+5. `MENU_ARCHITECTURE.md`：确认菜单边界和功能归属。
 
 ## 当前验证
 

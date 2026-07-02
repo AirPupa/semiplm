@@ -1,0 +1,1429 @@
+{
+  "Area": [
+    {
+      "en": "areaName",
+      "zh": "区域名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "区域描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "areaType1",
+      "zh": "区域类型1",
+      "constraint": "(Production/Inventory)"
+    },
+    {
+      "en": "areaType2",
+      "zh": "区域类型2",
+      "constraint": "(Area/Bay/Bank)"
+    },
+    {
+      "en": "superAreaName",
+      "zh": "上级区域",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "factoryName",
+      "zh": "所属工厂",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "areaState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    }
+  ],
+  "Bom": [
+    {
+      "en": "bomState",
+      "zh": "用料表状态",
+      "constraint": "(Unfrozen/Frozen/Active/Invalid)"
+    },
+    {
+      "en": "bomName",
+      "zh": "用料表名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "bomVersion",
+      "zh": "用料表版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "用料表描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "owner",
+      "zh": "所有者",
+      "constraint": "(30 chars)"
+    }
+  ],
+  "BomItem": [
+    {
+      "en": "idx",
+      "zh": "序号",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "bomName",
+      "zh": "用料表名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "bomVersion",
+      "zh": "用料表版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "materialType",
+      "zh": "物料类型",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "materialDefName",
+      "zh": "物料名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "materialDefVersion",
+      "zh": "物料版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "requireQuantity",
+      "zh": "用量",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "unit",
+      "zh": "单位",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processStepName",
+      "zh": "工步名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processStepVersion",
+      "zh": "工步版本",
+      "constraint": "(30 chars)"
+    }
+  ],
+  "CarrierDef": [
+    {
+      "en": "carrierDefName",
+      "zh": "载具料号",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "载具描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "carrierType",
+      "zh": "载具类型",
+      "constraint": "(FOSB/Cassette/Pod/WaferFrame/Box/StorageBag/RSP/FOUP)"
+    },
+    {
+      "en": "processType",
+      "zh": "载具分段",
+      "constraint": "(AG/BE/BG/FA/FE/KA/KB/SW)"
+    },
+    {
+      "en": "carrierCapacity",
+      "zh": "载具容量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "contaminationFlag",
+      "zh": "是否启用污染等级",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "initialContaminationLevel",
+      "zh": "初始污染等级",
+      "constraint": "(1/2/3/4/5/6/7/8/9/10/11)"
+    },
+    {
+      "en": "useCountLimit",
+      "zh": "单次使用次数限制",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "totalUseCountLimit",
+      "zh": "总使用次数限制",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "useTimeLimit",
+      "zh": "单次使用时间上限（小时）",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "totalUseTimeLimit",
+      "zh": "总使用时间上限（小时）",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "cleanCountLimit",
+      "zh": "清洗次数限制",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "createCleanFlag",
+      "zh": "创建清洗标识",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "tulAlarmId",
+      "zh": "使用时长告警",
+      "constraint": "(40 chars)"
+    },
+    {
+      "en": "ttulAlarmId",
+      "zh": "总使用时长告警",
+      "constraint": "(40 chars)"
+    },
+    {
+      "en": "uclAlarmId",
+      "zh": "使用次数告警",
+      "constraint": "(40 chars)"
+    },
+    {
+      "en": "tuclAlarmId",
+      "zh": "总使用次数告警",
+      "constraint": "(40 chars)"
+    },
+    {
+      "en": "cclAlarmId",
+      "zh": "清洗次数告警",
+      "constraint": "(40 chars)"
+    },
+    {
+      "en": "objectOwner",
+      "zh": "所属组",
+      "constraint": "(100 chars)"
+    },
+    {
+      "en": "carrierDefState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    }
+  ],
+  "ConsumableDef": [
+    {
+      "en": "consumableDefName",
+      "zh": "原物料料号",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "原物料描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "fabProductName",
+      "zh": "厂内品名",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "consumableType",
+      "zh": "原物料类型",
+      "constraint": "(Wafer/Chip/Device/Gas/Chemicals/RawWafer/TargetMaterial/Dummy/Monitor/PR)"
+    },
+    {
+      "en": "primaryUnitName",
+      "zh": "主单位名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "primaryUnitCode",
+      "zh": "主单位代码",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "unitName",
+      "zh": "辅单位名称",
+      "constraint": "(k/piece/ml/L/mg/g/pcs/gal/KG)"
+    },
+    {
+      "en": "unit",
+      "zh": "辅单位代码",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "unitConversionRate",
+      "zh": "单位转换率",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "materialStandardQty",
+      "zh": "辅单位标准数量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "spec",
+      "zh": "原物料规格",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "kitLeadTime",
+      "zh": "上机前置时间(小时)",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "inUsePeriod",
+      "zh": "使用有效时间(小时)",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "splitFlag",
+      "zh": "分瓶",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "deductionFlag",
+      "zh": "上机即扣料",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "deiceFlag",
+      "zh": "除冰",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "deiceDuration",
+      "zh": "除冰时长(小时)",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "deiceUpperLimit",
+      "zh": "除冰次数上限",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "useTimeAlarmLimit",
+      "zh": "上机时间预警值(小时)",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "safetyStock",
+      "zh": "安全库存",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "alarmAddress",
+      "zh": "预警地址",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "tulalarmId",
+      "zh": "除冰次数上限提示",
+      "constraint": "(40 chars)"
+    },
+    {
+      "en": "expireAlarmId",
+      "zh": "物料超期告警",
+      "constraint": "(40 chars)"
+    },
+    {
+      "en": "deFinAlarmId",
+      "zh": "除冰完成提醒",
+      "constraint": "(40 chars)"
+    },
+    {
+      "en": "utAlarmId",
+      "zh": "上机使用时长",
+      "constraint": "(40 chars)"
+    },
+    {
+      "en": "ssAlarmId",
+      "zh": "安全库存告警",
+      "constraint": "(40 chars)"
+    },
+    {
+      "en": "consumableDefState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    },
+    {
+      "en": "sourceType",
+      "zh": "类型",
+      "constraint": "(30 chars)"
+    }
+  ],
+  "EquipmentCapability": [
+    {
+      "en": "equipmentName",
+      "zh": "设备名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processCapabilityName",
+      "zh": "制程能力",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "assignFlag",
+      "zh": "分配标记",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "equipmentCapabilityState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    }
+  ],
+  "EquipmentDef": [
+    {
+      "en": "equipmentName",
+      "zh": "设备名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "设备描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "equipmentTypeName",
+      "zh": "设备类型",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "equipmentModelName",
+      "zh": "设备型号名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processType1",
+      "zh": "加工类型1",
+      "constraint": "(Production/Inventory)"
+    },
+    {
+      "en": "checkPodFlag",
+      "zh": "是否检查POD",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "areaName",
+      "zh": "所属区域",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processType2",
+      "zh": "加工类型2",
+      "constraint": "(Metrology/Storage/Process/Transport/Sort/Clean)"
+    },
+    {
+      "en": "constructType1",
+      "zh": "构造类型1",
+      "constraint": "(Main/Sub/Internal)"
+    },
+    {
+      "en": "constructType2",
+      "zh": "构造类型2",
+      "constraint": "(Normal/Internal/Cluster/Inline/Serial/Parallel/Furnace/Stocker/NTB/Rack)"
+    },
+    {
+      "en": "processCapacity",
+      "zh": "可同时加工批次数",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "ProcessJobCountMin",
+      "zh": "组批最小批次数",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "ProcessJobCountMax",
+      "zh": "组批最大批次数",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "ProcessJobCountMinP",
+      "zh": "组批最小产品数",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "ProcessJobCountMaxP",
+      "zh": "组批最大产品数",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "contaminationFlag",
+      "zh": "是否启用污染等级校验",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "availableBatchCount",
+      "zh": "同时组批数",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "requrieContaminationLevels",
+      "zh": "允许进设备污染等级",
+      "constraint": "(1/2/3/4/5/6/7/8/9/10/11)"
+    },
+    {
+      "en": "affectContaminationLevel",
+      "zh": "出设备污染等级",
+      "constraint": "(1/2/3/4/5/6/7/8/9/10/11)"
+    },
+    {
+      "en": "isCheckEqpRecipe",
+      "zh": "是否校验设备配方",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "requireCarrierProcessType",
+      "zh": "允许进设备载具分段",
+      "constraint": "(AG/BE/BG/FA/FE/KA/KB/SW)"
+    },
+    {
+      "en": "superEquipmentName",
+      "zh": "上级设备",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "equipmentStateModelName",
+      "zh": "设备状态模型",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "areaName",
+      "zh": "所属区域",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "metalStage",
+      "zh": "制程阶段",
+      "constraint": "(BEOL/FEOL)"
+    },
+    {
+      "en": "factoryName",
+      "zh": "所属工厂",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "rpaFlag",
+      "zh": "RPA",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "smallBottleFlag",
+      "zh": "小瓶化学用品",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "subEqpStateGroup",
+      "zh": "子设备状态组",
+      "constraint": "(1/2/3/4/5/6/7/8/9/10)"
+    },
+    {
+      "en": "workAreaName",
+      "zh": "工作区域",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "prcBufferCapacity",
+      "zh": "Product载具容量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "mocBufferCapacity",
+      "zh": "Monitor载具容量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "sdcBufferCapacity",
+      "zh": "SideDummy载具容量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "fdcBufferCapacity",
+      "zh": "FillDummy载具容量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "equipmentDefState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    },
+    {
+      "en": "consumableDefName",
+      "zh": "物料料号",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "keyPartsLifeTime",
+      "zh": "最大制程Wafer数",
+      "constraint": "(Integer)"
+    }
+  ],
+  "EquipmentRecipe": [
+    {
+      "en": "equipmentName",
+      "zh": "设备名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "equipmentRecipeName",
+      "zh": "设备配方",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "设备配方描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "processCapabilityName",
+      "zh": "制程能力",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "recipeName",
+      "zh": "制程配方",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "lifeTime",
+      "zh": "生命周期（小时）",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "equipmentRecipeMode",
+      "zh": "设备配方模式",
+      "constraint": "(Combination/Common/Parallel/Serial)"
+    },
+    {
+      "en": "equipmentChamberFlow",
+      "zh": "设备Chamber流程",
+      "constraint": "(900 chars)"
+    },
+    {
+      "en": "equipmentRecipeState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    },
+    {
+      "en": "expirAlarmId",
+      "zh": "设备配方失效告警",
+      "constraint": "(40 chars)"
+    }
+  ],
+  "EquipmentRecipeParam": [
+    {
+      "en": "equipmentName",
+      "zh": "设备名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "equipmentRecipeMode",
+      "zh": "关联模式",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "equipmentRecipeName",
+      "zh": "设备配方",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "recipeParameterName",
+      "zh": "配方参数名",
+      "constraint": "(DMY_THK)"
+    },
+    {
+      "en": "value",
+      "zh": "配方参数值",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "recipeName",
+      "zh": "制程配方",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "validationType",
+      "zh": "验证类型",
+      "constraint": "(None/Range/Exact)"
+    },
+    {
+      "en": "target",
+      "zh": "目标值",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "lowerlimit",
+      "zh": "下限值",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "upperlimit",
+      "zh": "上限值",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "showFlag",
+      "zh": "是否展示",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "eqpRecipeId",
+      "zh": "关联设备配方ID",
+      "constraint": "(60 chars)"
+    }
+  ],
+  "EquipmentType": [
+    {
+      "en": "equipmentTypeName",
+      "zh": "设备类型名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "设备类型描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "processType1",
+      "zh": "加工类型1",
+      "constraint": "(Production/Inventory)"
+    },
+    {
+      "en": "processType2",
+      "zh": "加工类型2",
+      "constraint": "(Process/Metrology/Sort/Storage/Transport/Monitor)"
+    },
+    {
+      "en": "constructType1",
+      "zh": "构造类型1",
+      "constraint": "(Main/Sub/Internal)"
+    },
+    {
+      "en": "constructType2",
+      "zh": "构造类型2",
+      "constraint": "(Normal/Internal/Cluster/Inline/Serial/Parallel/Furnace/Stocker/NTB/Rack)"
+    },
+    {
+      "en": "processCapacity",
+      "zh": "同时加工批次数量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "processJobCountMin",
+      "zh": "组批最小批次数量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "processJobCountMax",
+      "zh": "组批最大批次数量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "batchCapacity",
+      "zh": "批组容量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "dummyUnmountFlag",
+      "zh": "挡片下机标识",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "equipmentTypeState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    }
+  ],
+  "PortDef": [
+    {
+      "en": "equipmentName",
+      "zh": "设备名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "portName",
+      "zh": "料口名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "料口描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "portType",
+      "zh": "料口类型",
+      "constraint": "(Input/Output/InputOutput)"
+    },
+    {
+      "en": "portStateModelName",
+      "zh": "料口状态模型",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "requireCarrierProcessType",
+      "zh": "允许载具分段",
+      "constraint": "(90 chars)"
+    },
+    {
+      "en": "portDefState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    },
+    {
+      "en": "portLoadType",
+      "zh": "上料模式",
+      "constraint": "(LOT_BC_OPCST/LOT_RF_OPCST/LOT_RF_SMIF/LOT_BC_SMIF)"
+    }
+  ],
+  "ProcessCapability": [
+    {
+      "en": "processCapabilityName",
+      "zh": "制程能力名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "制程能力描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "processCapabilityState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    }
+  ],
+  "ProcessFlow": [
+    {
+      "en": "processFlowName",
+      "zh": "流程名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowVersion",
+      "zh": "流程版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "流程描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "processFlowType1",
+      "zh": "流程类型1",
+      "constraint": "(Main/Sub)"
+    },
+    {
+      "en": "processFlowType2",
+      "zh": "流程类型2",
+      "constraint": "(Production/Engineering/Monitor/Dummy/Rework/Branch/Aging/Clean)"
+    },
+    {
+      "en": "processFlowState",
+      "zh": "流程状态",
+      "constraint": "(Unfrozen/Frozen/Active/Invalid)"
+    },
+    {
+      "en": "ownerGroupName",
+      "zh": "所有者组",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "owner",
+      "zh": "所有者",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processGroupName",
+      "zh": "流程组",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "isDeleted",
+      "zh": "是否删除",
+      "constraint": "(Y/N)"
+    }
+  ],
+  "ProcessFlowContamination": [
+    {
+      "en": "processFlowName",
+      "zh": "流程名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowVersion",
+      "zh": "流程版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowSeqName",
+      "zh": "流程工序",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "requireContaminationLevels",
+      "zh": "进站允许污染等级",
+      "constraint": "(1/2/3/4/5/6/7/8/9/10/11)"
+    },
+    {
+      "en": "affectContaminationLevel",
+      "zh": "出站污染等级",
+      "constraint": "(1/2/3/4/5/6/7/8/9/10/11)"
+    }
+  ],
+  "ProcessFlowContent": [
+    {
+      "en": "processFlowSeqName",
+      "zh": "流程工序",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowName",
+      "zh": "流程名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowVersion",
+      "zh": "流程版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processCapabilityName",
+      "zh": "制程能力",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "recipeName",
+      "zh": "制程配方",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "recipeNameDescription",
+      "zh": "制程配方描述",
+      "constraint": "(100 chars)"
+    },
+    {
+      "en": "dcSpecName",
+      "zh": "数采规格",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "yieldLimit",
+      "zh": "良率下限(%)",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "reticleGroupName",
+      "zh": "光罩组",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "reticleName",
+      "zh": "光罩",
+      "constraint": "(60 chars)"
+    },
+    {
+      "en": "probeCardName",
+      "zh": "探针卡",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "lotSamplingRule",
+      "zh": "批次抽检规则",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "isSkipAllowed",
+      "zh": "是否允许跳过",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "isMandatoryStep",
+      "zh": "是否强制工步",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "samplingUserGroup",
+      "zh": "抽检规则所属用户组",
+      "constraint": "(ENGSampling/YESampling/QASampling)"
+    },
+    {
+      "en": "isFlip",
+      "zh": "背面朝上",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "branchFlowGroup",
+      "zh": "分支流程组",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "branchFlowName",
+      "zh": "分支流程",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "reworkFlowGroup",
+      "zh": "返工流程组",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "reworkFlowName",
+      "zh": "返工流程",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "waferSelectionRule",
+      "zh": "Wafer选片规则",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "inkAble",
+      "zh": "可否叠图",
+      "constraint": "(30 chars)"
+    }
+  ],
+  "ProcessFlowMeasure": [
+    {
+      "en": "processFlowName",
+      "zh": "流程名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowVersion",
+      "zh": "流程版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowSeqName",
+      "zh": "流程工序",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "keyProcessFlowSeqName",
+      "zh": "关键流程工序",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "measureItem",
+      "zh": "量测项",
+      "constraint": "(PARTICLE/TH/RS/CD/OL/DEFECT/TW)"
+    },
+    {
+      "en": "target",
+      "zh": "目标值",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "lowerSpecLimit",
+      "zh": "规格下限值",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "upperSpecLimit",
+      "zh": "规格上限值",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "sampleCount",
+      "zh": "抽检数量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "sampleSlots",
+      "zh": "抽检卡槽",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "sampleCountType",
+      "zh": "抽检方式",
+      "constraint": "(LotName/KeyEquipment)"
+    }
+  ],
+  "ProcessFlowSeq": [
+    {
+      "en": "idx",
+      "zh": "序号",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "stepSource",
+      "zh": "工序来源",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowSeqName",
+      "zh": "流程工序",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowName",
+      "zh": "流程名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowVersion",
+      "zh": "流程版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processName",
+      "zh": "工步名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processVersion",
+      "zh": "工步版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowSeqType",
+      "zh": "流程工序类型",
+      "constraint": "(ProcessStep/SubProcessFlow)"
+    },
+    {
+      "en": "processGroup1",
+      "zh": "分段",
+      "constraint": "(AG/BE/BG/FE/KA/KB/PK/SW/FE2BE/BE2BG/KB2KA)"
+    },
+    {
+      "en": "processGroup2",
+      "zh": "PIE工艺层",
+      "constraint": "(Encode/BK/AN/After-test/BS/CTG/CTS/End/FOX/GOX/GT/H3TRB/ILD/In/JFET/JTE/MARK/MET/NP/PA/PI/PP/Pre-test/PW/QA/SAC/START/TES/ZERO/SAW/RW/AG-TEST/FET/SL/NN/GAT/BEOL/GATE/WS/CF/CPT/PKG/NPW/XRTEST)"
+    },
+    {
+      "en": "processStageName",
+      "zh": "MFG工艺段",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "workLayer",
+      "zh": "MFG工艺层",
+      "constraint": "(Encode/BK/AN/After-test/BS/CTG/CTS/End/FOX/GOX/GT/H3TRB/ILD/In/JFET/JTE/MARK/MET/NP/PA/PI/PP/Pre-test/PW/QA/SAC/START/TES/ZERO/SAW/RW/AG-TEST/FET/SL/NN/GAT/BEOL/GATE/WS/CF/CPT/PKG/NPW/XRTEST)"
+    }
+  ],
+  "ProcessStage": [
+    {
+      "en": "idx",
+      "zh": "序号",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "processStageName",
+      "zh": "PIE工艺段",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "制程阶段描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "processGroup1",
+      "zh": "分段",
+      "constraint": "(AG/BE/BG/FE/KA/KB/PK/SW/FE2BE/BE2BG/KB2KA)"
+    },
+    {
+      "en": "processGroup2",
+      "zh": "PIE工艺层",
+      "constraint": "(Encode/BK/AN/After-test/BS/CTG/CTS/End/FOX/GOX/GT/H3TRB/ILD/In/JFET/JTE/MARK/MET/NP/PA/PI/PP/Pre-test/PW/QA/SAC/START/TES/ZERO/SAW/RW/AG-TEST/FET/SL/NN/GAT/BEOL/GATE/WS/CF/CPT/PKG/NPW/XRTEST)"
+    },
+    {
+      "en": "keyProcess",
+      "zh": "关键制程",
+      "constraint": "(Activation/Aging/Alloy/ANClean/Anneal/BackGrinding/BackMetal/BackOHM/BKClean/BSClean/CP/CSTClean/Deposition/Etch/FETClean/Flow/FOXClean/GOXClean/GTClean/ILDClean/Implant/JTEClean/Laser/LaserAnneal/MARClean/METClean/NPClean/Oxidation/Photo/PPClean/PRStrip/PWClean/Remove/RTA/SACClean/Schottky/Ship/Wafer/ZERClean/FrontProtection/Groove/PourFilm/StealthDicing/Split/Expander/VI)"
+    },
+    {
+      "en": "processStageState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    }
+  ],
+  "ProcessStep": [
+    {
+      "en": "processStepName",
+      "zh": "工步名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processStepVersion",
+      "zh": "工步版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "工步描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "processStepState",
+      "zh": "工步状态",
+      "constraint": "(Unfrozen/Frozen/Active/Invalid)"
+    },
+    {
+      "en": "processStepType",
+      "zh": "工步类型",
+      "constraint": "(Process/Metrology/Sort/Storage/Transport/WM/RT/Batch/MK/CP/MONITOR/Clean)"
+    },
+    {
+      "en": "processStageName",
+      "zh": "PIE工艺段",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processGroup1",
+      "zh": "分段",
+      "constraint": "(AG/BE/BG/FE/KA/KB/PK/SW/FE2BE/BE2BG/KB2KA)"
+    },
+    {
+      "en": "processGroup2",
+      "zh": "PIE工艺层",
+      "constraint": "(Encode/BK/AN/After-test/BS/CTG/CTS/End/FOX/GOX/GT/H3TRB/ILD/In/JFET/JTE/MARK/MET/NP/PA/PI/PP/Pre-test/PW/QA/SAC/START/TES/WG1/SAW/RW/AG-TEST/FET/SL/NN/GAT/BEOL/GATE/WS/CF/CPT/PKG/NPW/XRTEST)"
+    },
+    {
+      "en": "keyProcess",
+      "zh": "关键制程",
+      "constraint": "(Activation/Aging/Alloy/ANClean/Anneal/BackGrinding/BackMetal/BackOHM/BKClean/BSClean/CP/CSTClean/Deposition/Etch/FETClean/Flow/FOXClean/GOXClean/GTClean/ILDClean/Implant/JTEClean/Laser/LaserAnneal/MARClean/METClean/NPClean/Oxidation/Photo/PPClean/PRStrip/PWClean/Remove/RTA/SACClean/Schottky/Ship/Wafer/WG1Clean/FrontProtection/Groove/PourFilm/StealthDicing/Split/Expander/VI)"
+    },
+    {
+      "en": "bankName",
+      "zh": "线边仓",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processCapabilityName",
+      "zh": "制程能力",
+      "constraint": "(30-chars)"
+    },
+    {
+      "en": "recipeName",
+      "zh": "制程配方名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "isSkipAllowed",
+      "zh": "是否允许跳过",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "isMandatoryStep",
+      "zh": "是否强制工步",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "samplingUserGroup",
+      "zh": "抽检规则所属用户组",
+      "constraint": "(ENGSampling/YESampling/QASampling)"
+    },
+    {
+      "en": "ownerGroupName",
+      "zh": "所有者组",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "owner",
+      "zh": "所有者",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "costCenterStage",
+      "zh": "成本控制中心",
+      "constraint": "(101/102/103/104/105)"
+    },
+    {
+      "en": "isDeleted",
+      "zh": "是否删除",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "isFlip",
+      "zh": "背面朝上",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "detailProcessStepType",
+      "zh": "站点子类型",
+      "constraint": "(Normal/FurnaceProcess/FurnaceMeasure/Flip/WM/RT/MK/CP/MONITOR/Clean/Batch/LotOrBatch/MonitorProcess/NpwDone/Vi/Saw/CP1/PKG)"
+    }
+  ],
+  "ProductDef": [
+    {
+      "en": "productDefName",
+      "zh": "产品名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "productDefVersion",
+      "zh": "产品版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "产品描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "productDefState",
+      "zh": "产品状态",
+      "constraint": "(Unfrozen/Frozen/Active/Invalid)"
+    },
+    {
+      "en": "productType",
+      "zh": "产品类型",
+      "constraint": "(SBD/MOS/NPW/SBD_DEVICE/MOS_DEVICE/MOS_DEV)"
+    },
+    {
+      "en": "productionType",
+      "zh": "生产类型",
+      "constraint": "(Production/Engineering/Rework/Monitor/Dummy)"
+    },
+    {
+      "en": "productGroupName",
+      "zh": "产品组",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowName",
+      "zh": "流程名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "processFlowVersion",
+      "zh": "流程版本",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "bomName",
+      "zh": "用料表名称",
+      "constraint": "(60 chars)"
+    },
+    {
+      "en": "bomVersion",
+      "zh": "用料表版本",
+      "constraint": "(60 chars)"
+    },
+    {
+      "en": "reticleSetName",
+      "zh": "光罩集",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "grossDie",
+      "zh": "芯片总数",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "startBankName",
+      "zh": "投产线边仓",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "endBankName",
+      "zh": "完工线边仓",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "owner",
+      "zh": "所有者",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "maxUseCount",
+      "zh": "最大使用次数",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "maxRecycleCount",
+      "zh": "最大回收次数",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "ownerGroupName",
+      "zh": "所有者组",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "dummyMaxUseTime",
+      "zh": "Dummy最大使用时间(分钟)",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "dummyThkParam",
+      "zh": "膜厚参数名称",
+      "constraint": "(100 chars)"
+    },
+    {
+      "en": "dummyThkLimit",
+      "zh": "Dummy片膜厚上限(um)",
+      "constraint": "(Number)"
+    },
+    {
+      "en": "isDeleted",
+      "zh": "是否删除",
+      "constraint": "(Y/N)"
+    },
+    {
+      "en": "binName",
+      "zh": "Bin名称",
+      "constraint": "(60 chars)"
+    },
+    {
+      "en": "packageQty",
+      "zh": "包装数量",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "productUsage",
+      "zh": "NPW产品用途",
+      "constraint": "(Dummy/FurnaceMonitor/NormalMonitor)"
+    }
+  ],
+  "Recipe": [
+    {
+      "en": "processCapabilityName",
+      "zh": "制程能力",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "recipeName",
+      "zh": "制程配方名称",
+      "constraint": "(30 chars)"
+    },
+    {
+      "en": "description",
+      "zh": "制程配方描述",
+      "constraint": "(300 chars)"
+    },
+    {
+      "en": "objectOwner",
+      "zh": "所属组",
+      "constraint": "(100 chars)"
+    },
+    {
+      "en": "recipeState",
+      "zh": "是否生效",
+      "constraint": "(Valid/Invalid)"
+    },
+    {
+      "en": "effectiveTime",
+      "zh": "有效期",
+      "constraint": "(Integer)"
+    },
+    {
+      "en": "expirAlarmId",
+      "zh": "设备配方失效告警",
+      "constraint": "(40 chars)"
+    }
+  ]
+}

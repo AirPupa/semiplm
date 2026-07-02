@@ -23,14 +23,16 @@ def materials(page: int = 1, page_size: int = 20, keyword: str = "", db: Session
     q = db.query(models.Material)
     if keyword:
         kw = f"%{keyword}%"
-        q = q.filter(models.Material.code.ilike(kw) | models.Material.name.ilike(kw) | models.Material.category.ilike(kw))
+        q = q.filter(
+            models.Material.consumable_def_name.ilike(kw)
+            | models.Material.description.ilike(kw)
+            | models.Material.consumable_type.ilike(kw)
+            | models.Material.spec.ilike(kw)
+        )
     total = q.count()
-    rows = q.order_by(models.Material.category, models.Material.code).offset((page - 1) * page_size).limit(page_size).all()
+    rows = q.order_by(models.Material.consumable_type, models.Material.consumable_def_name).offset((page - 1) * page_size).limit(page_size).all()
     return {
-        "items": [
-            {"id": row.id, "code": row.code, "name": row.name, "category": row.category, "specification": row.specification, "supplier": row.supplier, "supplier_id": row.supplier_id, "risk_level": row.risk_level, "lifecycle": row.lifecycle}
-            for row in rows
-        ],
+        "items": [_material_dict(row) for row in rows],
         "total": total, "page": page, "page_size": page_size,
     }
 
@@ -39,19 +41,9 @@ def materials(page: int = 1, page_size: int = 20, keyword: str = "", db: Session
 def create_material(payload: MaterialPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("material"))) -> dict:
     material = models.Material(**payload.model_dump())
     db.add(material)
-    commit_or_409(db, "Material code already exists")
+    commit_or_409(db, "Material name already exists")
     db.refresh(material)
-    return {
-        "id": material.id,
-        "code": material.code,
-        "name": material.name,
-        "category": material.category,
-        "specification": material.specification,
-        "supplier": material.supplier,
-        "supplier_id": material.supplier_id,
-        "risk_level": material.risk_level,
-        "lifecycle": material.lifecycle,
-    }
+    return _material_dict(material)
 
 
 @router.put("/api/materials/{material_id}")
@@ -60,19 +52,9 @@ def update_material(material_id: int, payload: MaterialUpdatePayload, db: Sessio
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
     update_model(material, payload)
-    commit_or_409(db, "Material code already exists")
+    commit_or_409(db, "Material name already exists")
     db.refresh(material)
-    return {
-        "id": material.id,
-        "code": material.code,
-        "name": material.name,
-        "category": material.category,
-        "specification": material.specification,
-        "supplier": material.supplier,
-        "supplier_id": material.supplier_id,
-        "risk_level": material.risk_level,
-        "lifecycle": material.lifecycle,
-    }
+    return _material_dict(material)
 
 
 @router.delete("/api/materials/{material_id}")
@@ -80,12 +62,33 @@ def delete_material(material_id: int, db: Session = Depends(get_db), _: dict = D
     material = db.query(models.Material).filter(models.Material.id == material_id).first()
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
-    bom_refs = db.query(models.BomItem).filter(models.BomItem.material_code == material.code).count()
+    bom_refs = db.query(models.BomItem).filter(models.BomItem.material_def_name == material.consumable_def_name).count()
     if bom_refs:
         raise HTTPException(status_code=409, detail="Material is used by BOM and cannot be deleted")
     db.delete(material)
     db.commit()
     return {"deleted": True}
+
+
+def _material_dict(row: models.Material) -> dict:
+    return {
+        "id": row.id,
+        "consumable_def_name": row.consumable_def_name,
+        "description": row.description,
+        "fab_product_name": row.fab_product_name,
+        "consumable_type": row.consumable_type,
+        "primary_unit_name": row.primary_unit_name,
+        "primary_unit_code": row.primary_unit_code,
+        "unit_name": row.unit_name,
+        "unit": row.unit,
+        "unit_conversion_rate": row.unit_conversion_rate,
+        "material_standard_qty": row.material_standard_qty,
+        "spec": row.spec,
+        "supplier": row.supplier,
+        "supplier_id": row.supplier_id,
+        "risk_level": row.risk_level,
+        "lifecycle": row.lifecycle,
+    }
 
 @router.get("/api/substitute-materials")
 def substitute_materials(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:

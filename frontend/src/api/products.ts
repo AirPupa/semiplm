@@ -1,6 +1,6 @@
 import { client } from './request'
 
-export async function getProducts(params?: { page?: number; page_size?: number; keyword?: string }) {
+export async function getProducts(params?: { page?: number; page_size?: number; keyword?: string; state?: string; product_type?: string }) {
   const { data } = await client.get('/api/products', { params })
   return data
 }

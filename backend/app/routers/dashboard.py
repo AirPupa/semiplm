@@ -17,9 +17,9 @@ def dashboard(db: Session = Depends(get_db)) -> dict:
     docs = db.query(models.Document).count()
     signed_docs = db.query(models.Document).filter(models.Document.approval_status == "已签核").count()
     bom_total = db.query(models.BomHeader).count()
-    bom_ready = db.query(models.BomHeader).filter(models.BomHeader.status == "已发布").count()
+    bom_ready = db.query(models.BomHeader).filter(models.BomHeader.bom_state == "Active").count()
 
-    lifecycle_rows = db.query(models.Product.lifecycle, func.count(models.Product.id)).group_by(models.Product.lifecycle).all()
+    lifecycle_rows = db.query(models.Product.product_def_state, func.count(models.Product.id)).group_by(models.Product.product_def_state).all()
     changes_rows = db.query(models.Change.change_type, func.count(models.Change.id)).group_by(models.Change.change_type).all()
     quality_rows = db.query(models.QualityLot.tested_at, func.avg(models.QualityLot.cp_yield), func.avg(models.QualityLot.ft_yield)).group_by(models.QualityLot.tested_at).order_by(models.QualityLot.tested_at).all()
 
@@ -51,7 +51,7 @@ def dashboard(db: Session = Depends(get_db)) -> dict:
         },
         "lifecycle": [{"name": name, "value": value} for name, value in lifecycle_rows],
         "changes": [{"name": name, "value": value} for name, value in changes_rows],
-        "quality_trend": [{"date": date, "cp": round(cp, 1), "ft": round(ft, 1)} for date, cp, ft in quality_rows],
+        "quality_trend": [{"date": date, "cp": round(cp or 0, 1), "ft": round(ft or 0, 1)} for date, cp, ft in quality_rows],
         "project_phases": [{"name": name, "value": value} for name, value in project_rows],
         "integration_status": [{"name": name, "value": value} for name, value in integration_status_rows],
         "change_status": [{"name": name, "value": value} for name, value in change_status_rows],

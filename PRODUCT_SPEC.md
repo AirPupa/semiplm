@@ -8,7 +8,8 @@
 
 | 规则 | 约定 |
 |---|---|
-| 产品目标 | 面向光电芯片制造企业的轻量级单机商用 PLM，不做演示玩具页 |
+| 产品目标 | 面向半导体制造企业的轻量级单机商用 PLM，不做演示玩具页 |
+| MES 对齐边界 | PLM 主控产品定义、工艺流程（含工序/制程内容/参数/量测/QTime/防污染/动作/分支）、用料表、ECN 发布和 MES 同步包；MES 主控生产执行、设备运行态、设备配方主体和 Lot/Wafer 过站 |
 | 当前组织边界 | 单公司、单工厂、单组织；部门仅作为用户属性、流程路由和统计维度 |
 | 开发优先级 | 真实对象、真实 CRUD、真实状态、真实关联、真实审批、真实集成队列优先 |
 | 暂缓范围 | 多租户、多法人、多站点、高并发、复杂事务、CAD/EDA 深集成、移动端暂缓 |
@@ -25,7 +26,27 @@
 | 生命周期 | 文档、BOM、工艺、变更、项目、质量等核心对象必须有状态或生命周期 |
 | 对象关联 | 产品、文档、BOM、工艺、变更、项目、质量之间必须能互相追溯 |
 | 详情聚合 | 详情页优先聚合关联对象、文件、流程、日志，不把能力拆成过多菜单 |
+| 产品详情边界 | 产品详情展示 ProductDef 基础信息、关联工艺流程版本、关联 BOM 版本、MES 映射和同步记录；流程工序/内容/量测/防污染等在工艺流程详情维护 |
 | 历史追溯 | 发布、审批、归档、作废、关闭等关键动作必须保留历史记录 |
+
+## 二点一、半导体产品建模边界
+
+SemiPLM 的产品、工艺、用料表结构对齐 MES 制造建模，保证发布后能同步给 MES。8 模块（Seq/Content/Parameter/Measure/QTime/Contamination/Action/Alter）挂在工艺流程详情页的 tab，不单独建菜单、不挂在产品详情页。产品详情页只展示关联的工艺流程版本和用料表版本。
+
+| PLM 功能 | 对齐 MES 模块 | PLM 边界 | 挂载位置 |
+|---|---|---|---|
+| 产品基础信息 | `ProductDef.basicInfo` | 主控产品名称、版本、产品类型、生产类型、产品组、状态、Owner、Gross Die、Bank、光罩、Bin、Dummy 策略 | 产品中心 > 产品库 > 详情页 |
+| 用料表 | `bomName` / `bomVersion` / BOM 专用接口 | 主控设计用料、版本、关键物料、替代料、生效范围；MES/ERP 负责库存、领料、消耗 | BOM 管理 > 设计 BOM |
+| 流程工序 | `Product.detail type=Seq` / `seqLo` | 主控工序序列、工步名称、工步版本、工艺段、分段、工艺层 | 工艺管理 > 工艺流程 > 工序 tab |
+| 流程内容 | `Product.detail type=Content` / `content` | 引用 PLM 自有的工艺能力/工艺配方、光罩/探针卡、抽检规则、跳站/强制工步 | 工艺管理 > 工艺流程 > 制程内容 tab |
+| 动态参数 | `Product.detail type=Parameter` / `parameter` | 主控参数名、属性、参数值 | 工艺管理 > 工艺参数 |
+| 量测计划 | `Product.detail type=Measure` / `measure` | 主控量测项、目标值、上下限、抽检数量、抽检卡槽、抽检方式 | 工艺管理 > 工艺流程 > 量测 tab |
+| QTime | `Product.detail type=Qtime` / `qTime` | 主控起止工序、事件、限制分钟、最大 WIP、报警引用 | 工艺管理 > 工艺流程 > QTime tab |
+| 防污染 | `Product.detail type=Contamination` / `contamination` | 主控进站允许污染等级和出站污染等级 | 工艺管理 > 工艺流程 > 防污染 tab |
+| 动作 | `Product.detail type=Action` / `action` | 受控维护进出站动作、原因码和变更工步，第一阶段谨慎开放 | 工艺管理 > 工艺流程 > 动作 tab |
+| 分支/返工 | `Product.detail type=Alter` / `alter` | 受控维护分支、返工路径、返回工步和最大返工次数，第一阶段谨慎开放 | 工艺管理 > 工艺流程 > 分支 tab |
+
+工艺流程是 PLM 主控源头，设计、审批、发布后同步给 MES。标准工序（ProcessStep）、工艺阶段（ProcessStage）、工艺能力（ProcessCapability）、工艺配方（Recipe）、设备类型（EquipmentType）和设备能力（EquipmentCapability）为 PLM 主控设计层对象；其中 EquipmentCapability 按 `equipmentTypeName + processCapabilityName` 建模，用于工艺设计阶段按设备类型校验能力。设备配方（EquipmentRecipe）、设备配方参数（EquipmentRecipeParam）、炉管配方（FurnaceRecipe）和物理设备实例属 MES 执行层，PLM 只做引用、校验、对账。
 
 ## 三、状态与动作
 
@@ -154,6 +175,7 @@
 | 队列优先 | 涉及 ERP/MES/QMS 的动作先进入集成队列，不直接假装已同步 |
 | 同步记录 | 集成队列记录目标系统、对象类型、对象编号、动作、状态、失败原因和重试次数 |
 | 失败处理 | 失败可查看原因并重试，重试必须写日志 |
+| MES 产品建模 | MES 同步优先围绕 `ProductDef`、产品详情模块、BOM 绑定、ECN 生效和同步回写，不直接维护设备实例、设备配方主体、报警、批次执行 |
 | 暂缓内容 | 字段级复杂映射、真实回调、接口日志平台等在实际对接时深化 |
 
 ## 十三、完成标准

@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-07-02T03:28:07.230Z",
+  "counts": {
+    "ProductDef": 3,
+    "ProductGroup": 1,
+    "Recipe": 324,
+    "RecipeGroup": 0,
+    "ReticleSet": 0,
+    "ReticleGroup": 0,
+    "CarrierDef": 2,
+    "BinDef": 0,
+    "ProcessFlow": 3,
+    "ProcessStep": 256,
+    "ProcessStage": 27,
+    "ProcessCapability": 84,
+    "ProcessGroup": 0,
+    "Factory": 1,
+    "Site": 1,
+    "Area": 18,
+    "EquipmentType": 30,
+    "EquipmentCapability": 97,
+    "EquipmentRecipe": 331,
+    "FurnaceRecipe": 0,
+    "EquipmentModel": 0,
+    "StateModel": 1,
+    "ReasonCode": 295,
+    "OwnerGroup": 1,
+    "ObjectDef": 85,
+    "ViewObjectDef": 23
+  },
+  "failures": {}
+}

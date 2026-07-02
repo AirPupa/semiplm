@@ -11,26 +11,10 @@ from .. import models
 
 
 def ensure_lightweight_schema() -> None:
-    """对已有表追加新列（SQLite ALTER TABLE ADD COLUMN）。"""
+    """对已有表追加新列（SQLite ALTER TABLE ADD COLUMN）。
+    仅针对未推翻的旧表补列。新表（process_flows/recipes/equipment_types 等）由 create_all 完整建表。
+    """
     columns = {
-        "bom_headers": {
-            "source_bom_id": "INTEGER",
-            "effective_date": "VARCHAR(30) DEFAULT ''",
-            "expiry_date": "VARCHAR(30) DEFAULT ''",
-            "effectivity_type": "VARCHAR(30) DEFAULT '日期'",
-            "effective_batch": "VARCHAR(80) DEFAULT ''",
-        },
-        "bom_items": {
-            "process_step_id": "INTEGER",
-            "effective_date": "VARCHAR(30) DEFAULT ''",
-            "expiry_date": "VARCHAR(30) DEFAULT ''",
-            "effectivity_note": "VARCHAR(160) DEFAULT ''",
-        },
-        "process_routes": {
-            "release_date": "VARCHAR(30) DEFAULT ''",
-            "source_route_id": "INTEGER",
-            "effective_batch": "VARCHAR(80) DEFAULT ''",
-        },
         "integration_jobs": {
             "attempt_count": "INTEGER DEFAULT 0",
             "last_sync_at": "VARCHAR(30) DEFAULT ''",
@@ -65,9 +49,6 @@ def ensure_lightweight_schema() -> None:
             "parent_id": "INTEGER",
             "depends_on": "VARCHAR(200) DEFAULT ''",
         },
-        "materials": {
-            "supplier_id": "INTEGER",
-        },
         "substitute_materials": {
             "material_id": "INTEGER",
             "substitute_material_id": "INTEGER",
@@ -96,8 +77,27 @@ def ensure_lightweight_schema() -> None:
 
 
 def ensure_admin(db: Session) -> None:
-    """确保 admin 账号存在（upsert，单条）。首次部署空库时兜底。"""
+    """确保 admin 账号存在 + 默认角色种子。首次部署空库时兜底。"""
     admin = db.query(models.User).filter(models.User.username == "admin").first()
     if not admin:
-        db.add(models.User(username="admin", display_name="系统管理员", role="管理员", department="生产部"))
+        db.add(models.User(username="admin", display_name="系统管理员", role="系统管理员", department="生产部"))
         db.commit()
+
+    # 确保默认角色存在（否则所有用户权限为空，菜单全部隐藏）
+    _default_roles = [
+        ("ADMIN", "系统管理员", "系统配置、组织角色、接口配置、所有对象维护",
+         "system,user,role,workflow,integration,product,requirement,material,bom,document,process,change,project,quality,approval,dashboard,all"),
+        ("PE_ENGINEER", "工艺工程师", "产品/物料/BOM/文档/工艺/变更维护",
+         "product,requirement,material,bom,document,process,change,project,quality,approval,dashboard"),
+        ("PM_MANAGER", "项目经理", "项目管理/变更/质量/文档查看",
+         "product,document,bom,process,change,project,quality,approval,dashboard"),
+        ("IT_ENGINEER", "IT工程师", "系统配置、组织用户角色、流程和接口维护",
+         "organization,system,user,role,workflow,integration,dashboard"),
+        ("QE_ENGINEER", "质量工程师", "质量问题/CAPA/报告/变更审核",
+         "product,material,bom,document,change,quality,approval,dashboard"),
+    ]
+    for code, name, description, perms in _default_roles:
+        if not db.query(models.Role).filter(models.Role.code == code).first():
+            db.add(models.Role(code=code, name=name, description=description,
+                               permissions=perms, status="启用"))
+    db.commit()

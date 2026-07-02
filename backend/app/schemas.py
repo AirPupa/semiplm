@@ -19,23 +19,33 @@ class ProfileUpdatePayload(BaseModel):
 
 # ===== 产品 =====
 class ProductPayload(BaseModel):
-    code: str
-    model: str
-    name: str
-    product_type: str = "光电芯片"
-    process_platform: str = ""
-    wafer_size: str = ""
-    package_type: str = ""
-    temperature_grade: str = ""
-    quality_grade: str = ""
-    application: str = ""
-    lifecycle: str = "设计中"
+    """对齐 MES ProductDef 26 字段。"""
+    product_def_name: str
+    product_def_version: str = "001"
+    description: str = ""
+    product_def_state: str = "Active"
+    product_type: str = ""
+    production_type: str = ""
+    product_group_name: str = ""
+    process_flow_name: str = ""
+    process_flow_version: str = ""
+    bom_name: str = ""
+    bom_version: str = ""
+    reticle_set_name: str = ""
+    gross_die: int | None = None
+    start_bank_name: str = ""
+    end_bank_name: str = ""
     owner: str = ""
-    customer_part_no: str = ""
-    internal_part_no: str = ""
-    version: str = "A0"
-    readiness: int = 0
-    latest_release: str = ""
+    max_use_count: int | None = None
+    max_recycle_count: int | None = None
+    owner_group_name: str = ""
+    dummy_max_use_time: int | None = None
+    dummy_thk_param: str = ""
+    dummy_thk_limit: float | None = None
+    is_deleted: bool = False
+    bin_name: str = ""
+    package_qty: int | None = None
+    product_usage: str = ""
 
 
 class ProductVersionPayload(BaseModel):
@@ -49,31 +59,46 @@ class ProductVersionPayload(BaseModel):
 
 
 class ProductUpdatePayload(BaseModel):
-    code: str | None = None
-    model: str | None = None
-    name: str | None = None
+    description: str | None = None
+    product_def_state: str | None = None
     product_type: str | None = None
-    process_platform: str | None = None
-    wafer_size: str | None = None
-    package_type: str | None = None
-    temperature_grade: str | None = None
-    quality_grade: str | None = None
-    application: str | None = None
-    lifecycle: str | None = None
+    production_type: str | None = None
+    product_group_name: str | None = None
+    process_flow_name: str | None = None
+    process_flow_version: str | None = None
+    bom_name: str | None = None
+    bom_version: str | None = None
+    reticle_set_name: str | None = None
+    gross_die: int | None = None
+    start_bank_name: str | None = None
+    end_bank_name: str | None = None
     owner: str | None = None
-    customer_part_no: str | None = None
-    internal_part_no: str | None = None
-    version: str | None = None
-    readiness: int | None = None
-    latest_release: str | None = None
+    max_use_count: int | None = None
+    max_recycle_count: int | None = None
+    owner_group_name: str | None = None
+    dummy_max_use_time: int | None = None
+    dummy_thk_param: str | None = None
+    dummy_thk_limit: float | None = None
+    is_deleted: bool | None = None
+    bin_name: str | None = None
+    package_qty: int | None = None
+    product_usage: str | None = None
 
 
 # ===== 物料 / 替代料 / 供应商 =====
 class MaterialPayload(BaseModel):
-    code: str
-    name: str
-    category: str
-    specification: str = ""
+    """对齐 MES ConsumableDef 前 11 字段技术规格。"""
+    consumable_def_name: str
+    description: str = ""
+    fab_product_name: str = ""
+    consumable_type: str = ""
+    primary_unit_name: str = ""
+    primary_unit_code: str = ""
+    unit_name: str = ""
+    unit: str = ""
+    unit_conversion_rate: str = ""
+    material_standard_qty: int | None = None
+    spec: str = ""
     supplier: str = ""
     supplier_id: int | None = None
     risk_level: str = "低"
@@ -81,10 +106,17 @@ class MaterialPayload(BaseModel):
 
 
 class MaterialUpdatePayload(BaseModel):
-    code: str | None = None
-    name: str | None = None
-    category: str | None = None
-    specification: str | None = None
+    consumable_def_name: str | None = None
+    description: str | None = None
+    fab_product_name: str | None = None
+    consumable_type: str | None = None
+    primary_unit_name: str | None = None
+    primary_unit_code: str | None = None
+    unit_name: str | None = None
+    unit: str | None = None
+    unit_conversion_rate: str | None = None
+    material_standard_qty: int | None = None
+    spec: str | None = None
     supplier: str | None = None
     supplier_id: int | None = None
     risk_level: str | None = None
@@ -215,65 +247,47 @@ class DocumentDistributionRecallPayload(BaseModel):
 
 # ===== BOM =====
 class BomHeaderPayload(BaseModel):
-    product_id: int
-    bom_type: str = "EBOM"
-    version: str = "A0"
-    status: str = "编制中"
+    """对齐 MES Bom 5 字段。"""
+    bom_state: str = "Active"
+    bom_name: str
+    bom_version: str = "001"
+    description: str = ""
     owner: str = ""
-    release_date: str = ""
-    source_bom_id: int | None = None
-    effective_date: str = ""
-    expiry_date: str = ""
-    effectivity_type: str = "日期"
-    effective_batch: str = ""
 
 
 class BomHeaderUpdatePayload(BaseModel):
-    product_id: int | None = None
-    bom_type: str | None = None
-    version: str | None = None
-    status: str | None = None
+    bom_state: str | None = None
+    bom_name: str | None = None
+    bom_version: str | None = None
+    description: str | None = None
     owner: str | None = None
-    release_date: str | None = None
-    source_bom_id: int | None = None
-    effective_date: str | None = None
-    expiry_date: str | None = None
-    effectivity_type: str | None = None
-    effective_batch: str | None = None
 
 
 class BomItemPayload(BaseModel):
-    material_code: str
-    material_name: str
-    category: str = ""
-    specification: str = ""
-    quantity: float = 1
-    unit: str = "件"
-    position: str = ""
-    process_step_id: int | None = None
-    process_step: str = ""
-    substitute: str = ""
-    status: str = "有效"
-    effective_date: str = ""
-    expiry_date: str = ""
-    effectivity_note: str = ""
+    """对齐 MES BomItem 10 字段，三段式+工步绑定。"""
+    idx: int | None = None
+    bom_name: str = ""
+    bom_version: str = ""
+    material_type: str = "Consumable"
+    material_def_name: str
+    material_def_version: str = ""
+    require_quantity: float | None = None
+    unit: str = ""
+    process_step_name: str = ""
+    process_step_version: str = ""
 
 
 class BomItemUpdatePayload(BaseModel):
-    material_code: str | None = None
-    material_name: str | None = None
-    category: str | None = None
-    specification: str | None = None
-    quantity: float | None = None
+    idx: int | None = None
+    bom_name: str | None = None
+    bom_version: str | None = None
+    material_type: str | None = None
+    material_def_name: str | None = None
+    material_def_version: str | None = None
+    require_quantity: float | None = None
     unit: str | None = None
-    position: str | None = None
-    process_step_id: int | None = None
-    process_step: str | None = None
-    substitute: str | None = None
-    status: str | None = None
-    effective_date: str | None = None
-    expiry_date: str | None = None
-    effectivity_note: str | None = None
+    process_step_name: str | None = None
+    process_step_version: str | None = None
 
 
 class BomTransformPayload(BaseModel):
@@ -302,52 +316,288 @@ class BomBatchDeletePayload(BaseModel):
     item_ids: list[int]
 
 
-# ===== 工艺路线 / 工序 / 工艺参数 =====
-class ProcessRouteActionPayload(BaseModel):
-    acted_by: str = "系统用户"
-    comment: str = ""
-
-
-class ProcessRoutePayload(BaseModel):
-    product_id: int
-    route_no: str
-    name: str
-    version: str = "A0"
-    status: str = "编制中"
+# ===== 制造流程 / 工艺库（对齐 MES Template V1.2）=====
+class ProcessFlowPayload(BaseModel):
+    """对齐 MES ProcessFlow 10 字段。"""
+    process_flow_name: str
+    process_flow_version: str = "001"
+    description: str = ""
+    process_flow_type1: str = "Main"
+    process_flow_type2: str = "Production"
+    process_flow_state: str = "Active"
+    owner_group_name: str = ""
     owner: str = ""
-    release_date: str = ""
-    source_route_id: int | None = None
-    effective_batch: str = ""
+    process_group_name: str = ""
+    is_deleted: bool = False
 
 
-class ProcessRouteUpdatePayload(BaseModel):
-    product_id: int | None = None
-    route_no: str | None = None
-    name: str | None = None
-    version: str | None = None
-    status: str | None = None
+class ProcessFlowUpdatePayload(BaseModel):
+    description: str | None = None
+    process_flow_type1: str | None = None
+    process_flow_type2: str | None = None
+    process_flow_state: str | None = None
+    owner_group_name: str | None = None
     owner: str | None = None
-    release_date: str | None = None
-    source_route_id: int | None = None
-    effective_batch: str | None = None
+    process_group_name: str | None = None
+    is_deleted: bool | None = None
+
+
+class ProcessFlowSeqPayload(BaseModel):
+    """对齐 MES ProcessFlowSeq 12 字段。"""
+    idx: int | None = None
+    step_source: str = "MainFlow"
+    process_flow_seq_name: str
+    process_flow_name: str = ""
+    process_flow_version: str = ""
+    process_name: str = ""
+    process_version: str = ""
+    process_flow_seq_type: str = "ProcessStep"
+    process_group1: str = ""
+    process_group2: str = ""
+    process_stage_name: str = ""
+    work_layer: str = ""
+
+
+class ProcessFlowSeqUpdatePayload(BaseModel):
+    idx: int | None = None
+    step_source: str | None = None
+    process_flow_seq_name: str | None = None
+    process_name: str | None = None
+    process_version: str | None = None
+    process_flow_seq_type: str | None = None
+    process_group1: str | None = None
+    process_group2: str | None = None
+    process_stage_name: str | None = None
+    work_layer: str | None = None
+
+
+class ProcessFlowContentPayload(BaseModel):
+    """对齐 MES ProcessFlowContent 22 字段。"""
+    process_flow_seq_name: str
+    process_flow_name: str = ""
+    process_flow_version: str = ""
+    process_capability_name: str = ""
+    recipe_name: str = ""
+    recipe_name_description: str = ""
+    dc_spec_name: str = ""
+    yield_limit: str = ""
+    reticle_group_name: str = ""
+    reticle_name: str = ""
+    probe_card_name: str = ""
+    lot_sampling_rule: str = ""
+    is_skip_allowed: bool = False
+    is_mandatory_step: bool = False
+    sampling_user_group: str = ""
+    is_flip: bool = False
+    branch_flow_group: str = ""
+    branch_flow_name: str = ""
+    rework_flow_group: str = ""
+    rework_flow_name: str = ""
+    wafer_selection_rule: str = ""
+    ink_able: str = ""
+
+
+class ProcessFlowContentUpdatePayload(BaseModel):
+    process_capability_name: str | None = None
+    recipe_name: str | None = None
+    recipe_name_description: str | None = None
+    dc_spec_name: str | None = None
+    yield_limit: str | None = None
+    reticle_group_name: str | None = None
+    reticle_name: str | None = None
+    probe_card_name: str | None = None
+    lot_sampling_rule: str | None = None
+    is_skip_allowed: bool | None = None
+    is_mandatory_step: bool | None = None
+    sampling_user_group: str | None = None
+    is_flip: bool | None = None
+    branch_flow_group: str | None = None
+    branch_flow_name: str | None = None
+    rework_flow_group: str | None = None
+    rework_flow_name: str | None = None
+    wafer_selection_rule: str | None = None
+    ink_able: str | None = None
+
+
+class ProcessFlowMeasurePayload(BaseModel):
+    """对齐 MES ProcessFlowMeasure 11 字段。"""
+    process_flow_name: str = ""
+    process_flow_version: str = ""
+    process_flow_seq_name: str
+    key_process_flow_seq_name: str = ""
+    measure_item: str = ""
+    target: float | None = None
+    lower_spec_limit: float | None = None
+    upper_spec_limit: float | None = None
+    sample_count: int | None = None
+    sample_slots: str = ""
+    sample_count_type: str = ""
+
+
+class ProcessFlowMeasureUpdatePayload(BaseModel):
+    key_process_flow_seq_name: str | None = None
+    measure_item: str | None = None
+    target: float | None = None
+    lower_spec_limit: float | None = None
+    upper_spec_limit: float | None = None
+    sample_count: int | None = None
+    sample_slots: str | None = None
+    sample_count_type: str | None = None
+
+
+class ProcessFlowContaminationPayload(BaseModel):
+    """对齐 MES ProcessFlowContamination 5 字段。requireContaminationLevels 是数组，传字符串。"""
+    process_flow_name: str = ""
+    process_flow_version: str = ""
+    process_flow_seq_name: str
+    require_contamination_levels: str = ""
+    affect_contamination_level: str = ""
+
+
+class ProcessFlowContaminationUpdatePayload(BaseModel):
+    require_contamination_levels: str | None = None
+    affect_contamination_level: str | None = None
+
+
+class ProcessStagePayload(BaseModel):
+    """对齐 MES ProcessStage 7 字段。"""
+    idx: int | None = None
+    process_stage_name: str
+    description: str = ""
+    process_group1: str = ""
+    process_group2: str = ""
+    key_process: str = ""
+    process_stage_state: str = "Valid"
+
+
+class ProcessStageUpdatePayload(BaseModel):
+    idx: int | None = None
+    description: str | None = None
+    process_group1: str | None = None
+    process_group2: str | None = None
+    key_process: str | None = None
+    process_stage_state: str | None = None
 
 
 class ProcessStepPayload(BaseModel):
-    sequence: int
-    stage: str
-    operation: str
-    key_params: str = ""
+    """对齐 MES ProcessStep 21 字段。"""
+    process_step_name: str
+    process_step_version: str = "001"
+    description: str = ""
+    process_step_state: str = "Active"
+    process_step_type: str = "Process"
+    process_stage_name: str = ""
+    process_group1: str = ""
+    process_group2: str = ""
+    key_process: str = ""
+    bank_name: str = ""
+    process_capability_name: str = ""
+    recipe_name: str = ""
+    is_skip_allowed: bool = False
+    is_mandatory_step: bool = False
+    sampling_user_group: str = ""
+    owner_group_name: str = ""
     owner: str = ""
-    status: str = "有效"
+    cost_center_stage: str = ""
+    is_deleted: bool = False
+    is_flip: bool = False
+    detail_process_step_type: str = "Normal"
 
 
 class ProcessStepUpdatePayload(BaseModel):
-    sequence: int | None = None
-    stage: str | None = None
-    operation: str | None = None
-    key_params: str | None = None
+    description: str | None = None
+    process_step_state: str | None = None
+    process_step_type: str | None = None
+    process_stage_name: str | None = None
+    process_group1: str | None = None
+    process_group2: str | None = None
+    key_process: str | None = None
+    bank_name: str | None = None
+    process_capability_name: str | None = None
+    recipe_name: str | None = None
+    is_skip_allowed: bool | None = None
+    is_mandatory_step: bool | None = None
+    sampling_user_group: str | None = None
+    owner_group_name: str | None = None
     owner: str | None = None
-    status: str | None = None
+    cost_center_stage: str | None = None
+    is_deleted: bool | None = None
+    is_flip: bool | None = None
+    detail_process_step_type: str | None = None
+
+
+class ProcessCapabilityPayload(BaseModel):
+    """对齐 MES ProcessCapability 3 字段。"""
+    process_capability_name: str
+    description: str = ""
+    process_capability_state: str = "Valid"
+
+
+class ProcessCapabilityUpdatePayload(BaseModel):
+    description: str | None = None
+    process_capability_state: str | None = None
+
+
+class RecipePayload(BaseModel):
+    """对齐 MES Recipe 7 字段。不含物理参数。"""
+    process_capability_name: str
+    recipe_name: str
+    description: str = ""
+    object_owner: str = ""
+    recipe_state: str = "Valid"
+    effective_time: int | None = None
+    expir_alarm_id: str = ""
+
+
+class RecipeUpdatePayload(BaseModel):
+    description: str | None = None
+    object_owner: str | None = None
+    recipe_state: str | None = None
+    effective_time: int | None = None
+    expir_alarm_id: str | None = None
+
+
+class EquipmentTypePayload(BaseModel):
+    """对齐 MES EquipmentType 12 字段。"""
+    equipment_type_name: str
+    description: str = ""
+    process_type1: str = "Production"
+    process_type2: str = "Process"
+    construct_type1: str = "Main"
+    construct_type2: str = "Normal"
+    process_capacity: int | None = None
+    process_job_count_min: int | None = None
+    process_job_count_max: int | None = None
+    batch_capacity: int | None = None
+    dummy_unmount_flag: bool = False
+    equipment_type_state: str = "Valid"
+
+
+class EquipmentTypeUpdatePayload(BaseModel):
+    description: str | None = None
+    process_type1: str | None = None
+    process_type2: str | None = None
+    construct_type1: str | None = None
+    construct_type2: str | None = None
+    process_capacity: int | None = None
+    process_job_count_min: int | None = None
+    process_job_count_max: int | None = None
+    batch_capacity: int | None = None
+    dummy_unmount_flag: bool | None = None
+    equipment_type_state: str | None = None
+
+
+class EquipmentCapabilityPayload(BaseModel):
+    """对齐 MES EquipmentCapability 4 字段。PLM 改造：equipmentName→equipment_type_name。"""
+    equipment_type_name: str
+    process_capability_name: str
+    assign_flag: bool = True
+    equipment_capability_state: str = "Valid"
+
+
+class EquipmentCapabilityUpdatePayload(BaseModel):
+    assign_flag: bool | None = None
+    equipment_capability_state: str | None = None
 
 
 class ProcessParameterPayload(BaseModel):

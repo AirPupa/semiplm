@@ -12,6 +12,7 @@ from .routers import (
     foundation,
     integration,
     materials,
+    process_lib,
     processes,
     products,
     projects,
@@ -45,6 +46,7 @@ app.include_router(boms.router)
 app.include_router(documents.router)
 app.include_router(workbench.router)
 app.include_router(processes.router)
+app.include_router(process_lib.router)
 app.include_router(changes.router)
 app.include_router(projects.router)
 app.include_router(quality.router)

@@ -2,38 +2,37 @@
   <div class="panel list-panel" v-loading="loading">
     <div class="toolbar">
       <div>
-        <strong>物料主数据</strong>
-        <span class="muted"> · 衬底、外延、Mask、工艺材料与测试治具统一编码</span>
+        <strong>物料库</strong>
+        <span class="muted"> · ConsumableDef 技术规格，现场库存与告警留 MES 主控</span>
       </div>
       <div class="toolbar-actions">
-        <el-select v-model="filterCategory" placeholder="类别" clearable style="width: 120px" @change="onFilterChange">
-          <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
+        <el-select v-model="filterType" placeholder="物料类型" clearable style="width: 140px">
+          <el-option v-for="item in materialTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
-        <el-input v-model="keyword" placeholder="搜索物料编码/名称" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
+        <el-input v-model="keyword" placeholder="搜索名称/描述/规格" :prefix-icon="Search" clearable @keyup.enter="onSearch" @clear="onSearch" />
         <el-button v-if="can('material')" type="primary" :icon="Plus" @click="openCreate">新增物料</el-button>
       </div>
     </div>
+
     <div class="list-table-wrap">
       <el-table :data="filteredItems" height="100%">
-        <el-table-column prop="code" label="物料编码" width="150" fixed />
-        <el-table-column prop="name" label="物料名称" min-width="180" />
-        <el-table-column prop="category" label="类别" width="130">
+        <el-table-column prop="consumable_def_name" label="物料名称" width="170" fixed />
+        <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="consumable_type" label="类型" width="120">
           <template #default="{ row }">
-            <el-tag size="small" :type="categoryColor(row.category)">{{ row.category }}</el-tag>
+            <el-tag size="small">{{ row.consumable_type || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="specification" label="规格/参数" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="fab_product_name" label="Fab 产品" width="130" />
+        <el-table-column prop="primary_unit_name" label="主单位" width="100" />
+        <el-table-column prop="unit" label="单位代码" width="90" />
+        <el-table-column prop="unit_conversion_rate" label="换算率" width="90" />
+        <el-table-column prop="material_standard_qty" label="标准量" width="90" />
+        <el-table-column prop="spec" label="规格" min-width="220" show-overflow-tooltip />
         <el-table-column prop="supplier" label="供应商" width="140" />
-        <el-table-column prop="risk_level" label="风险" width="90">
-          <template #default="{ row }">
-            <el-tag :type="row.risk_level === '高' ? 'danger' : row.risk_level === '中' ? 'warning' : 'success'" size="small">
-              {{ row.risk_level }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column prop="lifecycle" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.lifecycle === '有效' ? 'success' : row.lifecycle === '冻结' ? 'warning' : row.lifecycle === '停用' ? 'info' : 'primary'" size="small">{{ row.lifecycle }}</el-tag>
+            <el-tag :type="row.lifecycle === '有效' ? 'success' : row.lifecycle === '冻结' ? 'warning' : 'info'" size="small">{{ row.lifecycle }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
@@ -44,6 +43,7 @@
         </el-table-column>
       </el-table>
     </div>
+
     <div class="pagination-bar" v-if="pagination.total > pagination.pageSize">
       <el-pagination
         v-model:current-page="pagination.page"
@@ -55,32 +55,40 @@
         @size-change="onSizeChange"
       />
     </div>
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑物料' : '新增物料'" width="640px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
+
+    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑物料' : '新增物料'" width="760px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
         <div class="form-grid">
-          <el-form-item label="物料编码" prop="code"><el-input v-model="form.code" /></el-form-item>
-          <el-form-item label="物料名称" prop="name"><el-input v-model="form.name" /></el-form-item>
-          <el-form-item label="类别" prop="category">
-            <el-select v-model="form.category" filterable allow-create>
-              <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
+          <el-form-item label="物料名称" prop="consumable_def_name"><el-input v-model="form.consumable_def_name" /></el-form-item>
+          <el-form-item label="Fab 产品"><el-input v-model="form.fab_product_name" /></el-form-item>
+          <el-form-item label="物料类型" prop="consumable_type">
+            <el-select v-model="form.consumable_type" filterable allow-create>
+              <el-option v-for="item in materialTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
+          <el-form-item label="主单位名称"><el-input v-model="form.primary_unit_name" /></el-form-item>
+          <el-form-item label="主单位代码"><el-input v-model="form.primary_unit_code" /></el-form-item>
+          <el-form-item label="单位名称"><el-input v-model="form.unit_name" /></el-form-item>
+          <el-form-item label="单位代码"><el-input v-model="form.unit" /></el-form-item>
+          <el-form-item label="换算率"><el-input v-model="form.unit_conversion_rate" /></el-form-item>
+          <el-form-item label="标准量"><el-input-number v-model="form.material_standard_qty" :min="0" /></el-form-item>
           <el-form-item label="供应商">
-            <el-select v-model="supplierSelect" filterable clearable placeholder="请选择供应商" @change="onSupplierChange">
+            <el-select v-model="supplierSelect" filterable clearable @change="onSupplierChange">
               <el-option v-for="s in suppliers" :key="s.code" :label="s.name" :value="s.code" />
             </el-select>
           </el-form-item>
           <el-form-item label="风险">
             <el-select v-model="form.risk_level">
-              <el-option v-for="o in riskLevelOptions" :key="o.value" :label="o.label" :value="o.value" />
+              <el-option v-for="item in riskLevelOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="form.lifecycle">
-              <el-option v-for="o in materialLifecycleOptions" :key="o.value" :label="o.label" :value="o.value" />
+              <el-option v-for="item in lifecycleOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
-          <el-form-item label="规格参数" class="form-wide"><el-input v-model="form.specification" type="textarea" :rows="3" /></el-form-item>
+          <el-form-item label="描述" class="form-wide"><el-input v-model="form.description" /></el-form-item>
+          <el-form-item label="规格" class="form-wide"><el-input v-model="form.spec" type="textarea" :rows="3" /></el-form-item>
         </div>
       </el-form>
       <template #footer>
@@ -101,9 +109,9 @@ import { useAuth } from '../auth'
 import { useListPage } from '../composables/useListPage'
 import { useDictionary } from '../composables/useDictionary'
 
-const categories = useDictionary('DICT_MATERIAL_CATEGORY').labels
+const materialTypeOptions = useDictionary('MES_CONSUMABLE_TYPE').options
 const riskLevelOptions = useDictionary('DICT_RISK_LEVEL').options
-const materialLifecycleOptions = useDictionary('DICT_MATERIAL_LIFECYCLE').options
+const lifecycleOptions = useDictionary('DICT_MATERIAL_LIFECYCLE').options
 
 const { can, refreshSession } = useAuth()
 const { pagination, keyword, items, loading, loadData, onSearch, onPageChange, onSizeChange } = useListPage(getMaterials)
@@ -113,39 +121,41 @@ const editingId = ref<number | null>(null)
 const saving = ref(false)
 const suppliers = ref<any[]>([])
 const supplierSelect = ref('')
-const filterCategory = ref('')
-const emptyForm = { code: '', name: '', category: '', specification: '', supplier: '', supplier_id: null as number | null, risk_level: '低', lifecycle: '有效' }
+const filterType = ref('')
+
+const emptyForm = {
+  consumable_def_name: '',
+  description: '',
+  fab_product_name: '',
+  consumable_type: '',
+  primary_unit_name: '',
+  primary_unit_code: '',
+  unit_name: '',
+  unit: '',
+  unit_conversion_rate: '',
+  material_standard_qty: null as number | null,
+  spec: '',
+  supplier: '',
+  supplier_id: null as number | null,
+  risk_level: '低',
+  lifecycle: '有效'
+}
 const form = ref<any>({ ...emptyForm })
 
 const rules: FormRules = {
-  code: [{ required: true, message: '请输入物料编码', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入物料名称', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择类别', trigger: 'change' }],
+  consumable_def_name: [{ required: true, message: '请输入物料名称', trigger: 'blur' }],
+  consumable_type: [{ required: true, message: '请选择物料类型', trigger: 'change' }],
 }
 
 const filteredItems = computed(() => {
-  if (!filterCategory.value) return items.value || []
-  return (items.value || []).filter((r: any) => r.category === filterCategory.value)
+  if (!filterType.value) return items.value || []
+  return (items.value || []).filter((row: any) => row.consumable_type === filterType.value)
 })
 
-function onFilterChange() {
-  // 前端筛选
-}
-
-function categoryColor(cat: string) {
-  const map: Record<string, string> = { '衬底': 'primary', '外延': 'success', 'Mask': 'warning', '工艺材料': 'danger', '测试治具': 'info', '辅料': '', '包材': '' }
-  return map[cat] || ''
-}
-
 function onSupplierChange(val: string) {
-  const s = suppliers.value.find((x: any) => x.code === val)
-  if (s) {
-    form.value.supplier = s.name
-    form.value.supplier_id = s.id
-  } else {
-    form.value.supplier = ''
-    form.value.supplier_id = null
-  }
+  const supplier = suppliers.value.find((item: any) => item.code === val)
+  form.value.supplier = supplier?.name || ''
+  form.value.supplier_id = supplier?.id || null
 }
 
 function openCreate() {
@@ -160,21 +170,13 @@ function openEdit(row: any) {
   if (!can('material')) return
   editingId.value = row.id
   form.value = { ...row }
-  if (row.supplier_id) {
-    const s = suppliers.value.find((x: any) => x.id === row.supplier_id)
-    supplierSelect.value = s ? s.code : ''
-  } else if (row.supplier) {
-    const s = suppliers.value.find((x: any) => x.name === row.supplier)
-    supplierSelect.value = s ? s.code : ''
-  } else {
-    supplierSelect.value = ''
-  }
+  const supplier = suppliers.value.find((item: any) => item.id === row.supplier_id || item.name === row.supplier)
+  supplierSelect.value = supplier?.code || ''
   dialogVisible.value = true
 }
 
 async function save() {
-  if (!can('material')) return
-  if (!formRef.value) return
+  if (!can('material') || !formRef.value) return
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     saving.value = true
@@ -197,7 +199,7 @@ async function save() {
 
 async function remove(row: any) {
   if (!can('material')) return
-  await ElMessageBox.confirm(`确认删除物料 ${row.code}？已被 BOM 使用的物料会被后端阻止删除。`, '删除确认', { type: 'warning' })
+  await ElMessageBox.confirm(`确认删除物料 ${row.consumable_def_name}？已被 BOM 使用的物料会被后端阻止删除。`, '删除确认', { type: 'warning' })
   try {
     await deleteMaterial(row.id)
     ElMessage.success('物料已删除')

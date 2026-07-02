@@ -1,0 +1,255 @@
+{
+  "generatedAt": "2026-07-02T03:56:23.498Z",
+  "products": [
+    {
+      "productDefName": "NLA-PROD",
+      "productDefVersion": "001",
+      "processFlowName": "NLAFlow-01",
+      "processFlowVersion": "AA",
+      "bomName": "BOM-NLA-001",
+      "bomVersion": null,
+      "moduleCounts": {
+        "Seq": 103,
+        "Content": 103,
+        "Parameter": 0,
+        "Measure": 103,
+        "Qtime": 0,
+        "Contamination": 103,
+        "Action": 0,
+        "Alter": 0
+      }
+    },
+    {
+      "productDefName": "NWBL0625-01",
+      "productDefVersion": "001",
+      "processFlowName": "JJSFlow-01",
+      "processFlowVersion": "AA",
+      "bomName": "BOM-NWBL0827",
+      "bomVersion": "AA",
+      "moduleCounts": {
+        "Seq": 220,
+        "Content": 220,
+        "Parameter": 0,
+        "Measure": 220,
+        "Qtime": 0,
+        "Contamination": 220,
+        "Action": 0,
+        "Alter": 0
+      }
+    },
+    {
+      "productDefName": "NWBL0827-01",
+      "productDefVersion": "001",
+      "processFlowName": "JJSFlow-01",
+      "processFlowVersion": "AA",
+      "bomName": "BOM-NWBL0827",
+      "bomVersion": null,
+      "moduleCounts": {
+        "Seq": 220,
+        "Content": 220,
+        "Parameter": 0,
+        "Measure": 220,
+        "Qtime": 0,
+        "Contamination": 220,
+        "Action": 0,
+        "Alter": 0
+      }
+    }
+  ],
+  "aggregate": {
+    "Seq": {
+      "productsWithRows": 3,
+      "totalRows": 543,
+      "maxRows": 220,
+      "fieldCount": 13,
+      "fieldNames": [
+        "id",
+        "idx",
+        "productDefName",
+        "productDefVersion",
+        "processFlowName",
+        "processFlowVersion",
+        "processFlowSeqName",
+        "processFlowSeqType",
+        "processName",
+        "processVersion",
+        "processStageName",
+        "processGroup1",
+        "processGroup2"
+      ]
+    },
+    "Content": {
+      "productsWithRows": 3,
+      "totalRows": 543,
+      "maxRows": 220,
+      "fieldCount": 20,
+      "fieldNames": [
+        "idx",
+        "processFlowName",
+        "processFlowVersion",
+        "processFlowSeqName",
+        "processName",
+        "processVersion",
+        "id",
+        "processCapabilityName",
+        "recipeName",
+        "dcSpecName",
+        "yieldLimit",
+        "reticleGroupName",
+        "reticleName",
+        "probeCardName",
+        "lotSamplingRule",
+        "waferSelectionRule",
+        "isSkipAllowed",
+        "isMandatoryStep",
+        "samplingUserGroup",
+        "alterCount"
+      ]
+    },
+    "Parameter": {
+      "productsWithRows": 0,
+      "totalRows": 0,
+      "maxRows": 0,
+      "fieldCount": 11,
+      "fieldNames": [
+        "id",
+        "productDefName",
+        "productDefVersion",
+        "processFlowName",
+        "processFlowVersion",
+        "processFlowSeqName",
+        "parameterName",
+        "parameterAttributeName",
+        "parameterValue",
+        "siteCode",
+        "tenantCode"
+      ]
+    },
+    "Measure": {
+      "productsWithRows": 3,
+      "totalRows": 543,
+      "maxRows": 220,
+      "fieldCount": 18,
+      "fieldNames": [
+        "idx",
+        "processFlowSeqType",
+        "processName",
+        "processVersion",
+        "id",
+        "processFlowName",
+        "processFlowVersion",
+        "processFlowSeqName",
+        "keyProcessFlowSeqName",
+        "measureItem",
+        "target",
+        "lowerSpecLimit",
+        "upperSpecLimit",
+        "sampleCount",
+        "sampleSlots",
+        "sampleCountType",
+        "siteCode",
+        "tenantCode"
+      ]
+    },
+    "Qtime": {
+      "productsWithRows": 0,
+      "totalRows": 0,
+      "maxRows": 0,
+      "fieldCount": 30,
+      "fieldNames": [
+        "id",
+        "idx",
+        "processFlowName",
+        "processFlowVersion",
+        "processFlowSeqName",
+        "fromProcessFlowSeqDesc",
+        "alterName",
+        "alterFlowName",
+        "alterFlowVersion",
+        "alterFlowSeqName",
+        "fromEventName",
+        "toEventName",
+        "queueTimeType",
+        "queueTimeLimit",
+        "maxWipCount",
+        "toProcessFlowName",
+        "toProcessFlowVersion",
+        "toProcessFlowSeqName",
+        "toProcessFlowSeqDesc",
+        "toAlterName",
+        "toAlterFlowName",
+        "toAlterFlowVersion",
+        "toAlterFlowSeqName",
+        "eventTime",
+        "eventName",
+        "eventUser",
+        "eventComment",
+        "emailAlarmRatio",
+        "ifmaxAlarmId",
+        "maxAlarmId"
+      ]
+    },
+    "Contamination": {
+      "productsWithRows": 3,
+      "totalRows": 543,
+      "maxRows": 220,
+      "fieldCount": 10,
+      "fieldNames": [
+        "idx",
+        "processFlowSeqType",
+        "processName",
+        "processVersion",
+        "id",
+        "processFlowName",
+        "processFlowVersion",
+        "processFlowSeqName",
+        "requireContaminationLevels",
+        "affectContaminationLevel"
+      ]
+    },
+    "Action": {
+      "productsWithRows": 0,
+      "totalRows": 0,
+      "maxRows": 0,
+      "fieldCount": 10,
+      "fieldNames": [
+        "id",
+        "idx",
+        "processFlowName",
+        "processFlowVersion",
+        "processFlowSeqName",
+        "actionType",
+        "action",
+        "actionComment",
+        "reasonCode",
+        "changePFSeqName"
+      ]
+    },
+    "Alter": {
+      "productsWithRows": 0,
+      "totalRows": 0,
+      "maxRows": 0,
+      "fieldCount": 18,
+      "fieldNames": [
+        "id",
+        "idx",
+        "processFlowName",
+        "processFlowVersion",
+        "processFlowSeqName",
+        "processFlowAlterName",
+        "processFlowAlterType",
+        "conditionExpression",
+        "toProcessFlowName",
+        "toEventName",
+        "toProcessFlowVersion",
+        "toProcessFlowSeqName",
+        "retProcessFlowSeqName",
+        "reworkCountLimit",
+        "eventTime",
+        "eventName",
+        "eventUser",
+        "eventComment"
+      ]
+    }
+  }
+}

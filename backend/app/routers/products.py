@@ -1,3 +1,8 @@
+"""产品中心 - ProductDef（对齐 MES Template V1.2，26 字段）。
+
+架构独立化：Product 不再绑定 process_routes 外键关系，通过 processFlowName+Version
+字符串引用制造流程。详情接口返回引用对象的轻量信息（不内嵌所有业务模块）。
+"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
 
@@ -13,16 +18,29 @@ router = APIRouter()
 
 
 @router.get("/api/products")
-def products(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+def products(
+    page: int = 1,
+    page_size: int = 20,
+    keyword: str = "",
+    state: str = "",
+    product_type: str = "",
+    db: Session = Depends(get_db),
+) -> dict:
+    """产品列表 - 对齐 ProductDef 字段过滤。"""
     q = db.query(models.Product)
     if keyword:
         kw = f"%{keyword}%"
         q = q.filter(
-            models.Product.code.ilike(kw)
-            | models.Product.model.ilike(kw)
-            | models.Product.name.ilike(kw)
+            models.Product.product_def_name.ilike(kw)
+            | models.Product.description.ilike(kw)
             | models.Product.product_type.ilike(kw)
+            | models.Product.product_group_name.ilike(kw)
+            | models.Product.owner.ilike(kw)
         )
+    if state:
+        q = q.filter(models.Product.product_def_state == state)
+    if product_type:
+        q = q.filter(models.Product.product_type == product_type)
     total = q.count()
     rows = q.order_by(models.Product.id).offset((page - 1) * page_size).limit(page_size).all()
     return {
@@ -37,20 +55,24 @@ def products(page: int = 1, page_size: int = 20, keyword: str = "", db: Session 
 def create_product(payload: ProductPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("product"))) -> dict:
     product = models.Product(**payload.model_dump())
     db.add(product)
-    commit_or_409(db, "Product code or model already exists")
+    commit_or_409(db, "ProductDef name already exists")
     db.refresh(product)
     return serialize_product(product)
 
 
 @router.get("/api/products/{product_id}")
 def product_detail(product_id: int, db: Session = Depends(get_db)) -> dict:
+    """产品详情 - 展示自身 26 字段 + 引用对象（ProcessFlow/Bom）的轻量信息。
+
+    不再内嵌全部业务模块（需求/文档/BOM/工艺/变更/项目/质量）。
+    PLM 是源头，详情聚焦 ProductDef 自身规格和引用关系；
+    各业务对象在自己的菜单维护，避免详情页变成 8 模块大杂烩。
+    """
     product = (
         db.query(models.Product)
         .options(
-            selectinload(models.Product.bom_headers),
             selectinload(models.Product.documents),
-            selectinload(models.Product.process_routes).selectinload(models.ProcessRoute.steps),
-            selectinload(models.Product.changes).selectinload(models.Change.impacts),
+            selectinload(models.Product.changes),
             selectinload(models.Product.quality_lots),
             selectinload(models.Product.requirements),
         )
@@ -59,23 +81,82 @@ def product_detail(product_id: int, db: Session = Depends(get_db)) -> dict:
     )
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+
     data = serialize_product(product)
-    # 项目通过 product_model 字符串关联，非外键，单独查询
+
+    # 引用对象 - ProcessFlow（通过 process_flow_name+version 字符串引用）
+    referenced_flow = None
+    if product.process_flow_name:
+        flow = (
+            db.query(models.ProcessFlow)
+            .filter(
+                models.ProcessFlow.process_flow_name == product.process_flow_name,
+                models.ProcessFlow.process_flow_version == (product.process_flow_version or "001"),
+                models.ProcessFlow.is_deleted == False,
+            )
+            .first()
+        )
+        if flow:
+            referenced_flow = {
+                "id": flow.id,
+                "process_flow_name": flow.process_flow_name,
+                "process_flow_version": flow.process_flow_version,
+                "process_flow_state": flow.process_flow_state,
+                "process_flow_type1": flow.process_flow_type1,
+                "process_flow_type2": flow.process_flow_type2,
+                "owner": flow.owner,
+                "description": flow.description,
+            }
+
+    # 引用对象 - Bom（通过 bom_name+version 字符串引用）
+    referenced_bom = None
+    if product.bom_name:
+        bom = (
+            db.query(models.BomHeader)
+            .filter(
+                models.BomHeader.bom_name == product.bom_name,
+                models.BomHeader.bom_version == (product.bom_version or "001"),
+            )
+            .first()
+        )
+        if bom:
+            referenced_bom = {
+                "id": bom.id,
+                "bom_name": bom.bom_name,
+                "bom_version": bom.bom_version,
+                "bom_state": bom.bom_state,
+                "owner": bom.owner,
+                "description": bom.description,
+            }
+
+    # 轻量关联：按字符串 product_model 关联的项目
     linked_projects = (
         db.query(models.Project)
-        .filter(models.Project.product_model == product.model)
+        .filter(models.Project.product_model == product.product_def_name)
         .order_by(models.Project.id.desc())
         .all()
     )
+
     data.update(
         {
-            "boms": [{"id": bom.id, "type": bom.bom_type, "version": bom.version, "status": bom.status, "owner": bom.owner, "release_date": bom.release_date} for bom in product.bom_headers],
-            "documents": [{"id": doc.id, "doc_no": doc.doc_no, "title": doc.title, "category": doc.category, "version": doc.version, "status": doc.status, "approval_status": doc.approval_status} for doc in product.documents],
-            "routes": [{"id": route.id, "route_no": route.route_no, "name": route.name, "version": route.version, "status": route.status, "steps": len(route.steps)} for route in product.process_routes],
-            "changes": [{"id": change.id, "change_no": change.change_no, "title": change.title, "status": change.status, "priority": change.priority} for change in product.changes],
-            "quality": [{"lot_no": lot.lot_no, "stage": lot.stage, "cp_yield": lot.cp_yield, "ft_yield": lot.ft_yield, "status": lot.status} for lot in product.quality_lots],
-            "requirements": [{"id": req.id, "req_no": req.req_no, "title": req.title, "source": req.source, "category": req.category, "priority": req.priority, "status": req.status, "owner": req.owner} for req in product.requirements],
-            "projects": [{"id": proj.id, "project_no": proj.project_no, "name": proj.name, "phase": proj.phase, "progress": proj.progress, "owner": proj.owner, "risk_level": proj.risk_level} for proj in linked_projects],
+            "referenced_flow": referenced_flow,
+            "referenced_bom": referenced_bom,
+            "documents_count": len(product.documents),
+            "changes_count": len(product.changes),
+            "quality_lots_count": len(product.quality_lots),
+            "requirements_count": len(product.requirements),
+            "projects": [
+                {
+                    "id": proj.id,
+                    "project_no": proj.project_no,
+                    "name": proj.name,
+                    "phase": proj.phase,
+                    "progress": proj.progress,
+                    "owner": proj.owner,
+                    "risk_level": proj.risk_level,
+                }
+                for proj in linked_projects
+            ],
         }
     )
     return data
@@ -87,7 +168,7 @@ def update_product(product_id: int, payload: ProductUpdatePayload, db: Session =
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     update_model(product, payload)
-    commit_or_409(db, "Product code or model already exists")
+    commit_or_409(db, "ProductDef name already exists")
     db.refresh(product)
     return serialize_product(product)
 
@@ -97,10 +178,9 @@ def delete_product(product_id: int, db: Session = Depends(get_db), _: dict = Dep
     product = db.query(models.Product).filter(models.Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    # 架构独立化后：ProcessFlow 不再外键绑定，但 Document/Change/QualityLot/Requirement 仍可能引用
     linked_count = (
-        db.query(models.BomHeader).filter(models.BomHeader.product_id == product_id).count()
-        + db.query(models.Document).filter(models.Document.product_id == product_id).count()
-        + db.query(models.ProcessRoute).filter(models.ProcessRoute.product_id == product_id).count()
+        db.query(models.Document).filter(models.Document.product_id == product_id).count()
         + db.query(models.Change).filter(models.Change.product_id == product_id).count()
         + db.query(models.QualityLot).filter(models.QualityLot.product_id == product_id).count()
         + db.query(models.Requirement).filter(models.Requirement.product_id == product_id).count()

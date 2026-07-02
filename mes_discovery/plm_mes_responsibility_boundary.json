@@ -1,0 +1,117 @@
+{
+  "generatedAt": "2026-07-02T11:28:00+08:00",
+  "purpose": "Define which MES modeling objects should be controlled by PLM, referenced by PLM, or left under MES ownership.",
+  "rules": {
+    "plmMaster": "PLM owns design intent, versioning, approval, release package, and sync payload.",
+    "plmReference": "PLM reads MES data for selection, validation, and reconciliation, but does not create or overwrite the MES master object.",
+    "mesOwned": "MES remains the system of record. PLM may store external references and sync results only."
+  },
+  "plmMaster": [
+    {
+      "mesObject": "ProductDef",
+      "scope": "Product name, version, type, production type, product group, owner, gross die, bank/bin/reticle bindings, route/BOM bindings.",
+      "syncPriority": "P0"
+    },
+    {
+      "mesObject": "ProductDetail.Seq",
+      "payloadKey": "seqLo",
+      "scope": "Product/version controlled process sequence, step name, step version, process stage, and process groups.",
+      "syncPriority": "P0"
+    },
+    {
+      "mesObject": "ProductDetail.Content",
+      "payloadKey": "content",
+      "scope": "Product-specific route content and step controls.",
+      "syncPriority": "P0"
+    },
+    {
+      "mesObject": "ProductDetail.Parameter",
+      "payloadKey": "parameter",
+      "scope": "Product/version controlled process parameters.",
+      "syncPriority": "P0"
+    },
+    {
+      "mesObject": "ProductDetail.Measure",
+      "payloadKey": "measure",
+      "scope": "Product/version controlled measurement plan.",
+      "syncPriority": "P0"
+    },
+    {
+      "mesObject": "ProductDetail.Qtime",
+      "payloadKey": "qTime",
+      "scope": "Product/version controlled queue-time limits.",
+      "syncPriority": "P0"
+    },
+    {
+      "mesObject": "ProductDetail.Contamination",
+      "payloadKey": "contamination",
+      "scope": "Product/version controlled contamination constraints.",
+      "syncPriority": "P1"
+    },
+    {
+      "mesObject": "ProductDetail.Action",
+      "payloadKey": "action",
+      "scope": "Product/version controlled enter/exit actions, reason codes, and step changes.",
+      "syncPriority": "P2"
+    },
+    {
+      "mesObject": "ProductDetail.Alter",
+      "payloadKey": "alter",
+      "scope": "Product/version controlled branch and rework paths.",
+      "syncPriority": "P2"
+    },
+    {
+      "mesObject": "ProcessFlow",
+      "scope": "Released process route identity, version, and product binding.",
+      "syncPriority": "P0"
+    },
+    {
+      "mesObject": "ProductGroup",
+      "scope": "Product classification when used by PLM release governance.",
+      "syncPriority": "P1"
+    }
+  ],
+  "plmReference": [
+    "Recipe",
+    "RecipeGroup",
+    "ReticleSet",
+    "ReticleGroup",
+    "CarrierDef",
+    "BinDef",
+    "ProcessStep",
+    "ProcessStage",
+    "ProcessCapability",
+    "ProcessGroup",
+    "Factory",
+    "Site",
+    "Area",
+    "EquipmentType",
+    "EquipmentCapability",
+    "EquipmentRecipe",
+    "FurnaceRecipe",
+    "EquipmentModel",
+    "StateModel",
+    "ReasonCode",
+    "OwnerGroup",
+    "ObjectDef",
+    "ViewObjectDef"
+  ],
+  "mesOwned": [
+    "Equipment instance and runtime state",
+    "EquipmentRecipe body and equipment/chamber execution logic",
+    "Alarm definitions and machine alarms",
+    "Batch and NPW batch rules",
+    "Naming rules",
+    "Users, groups, roles, and permissions",
+    "Lot/Wafer execution records",
+    "Dispatching, track-in/out, hold/release, rework execution"
+  ],
+  "syncGuardrails": [
+    "Do not write to production MES before a sandbox write path is confirmed.",
+    "Do not persist cookies, tokens, or passwords in repository files.",
+    "Only approved and frozen PLM release packages can generate MES sync payloads.",
+    "Use idempotency keys based on object name, version, and ECN number.",
+    "Start with ProductDef and product-route/BOM binding before enabling lower-level controls.",
+    "EquipmentRecipe is validation/reference only in the first implementation phase."
+  ]
+}

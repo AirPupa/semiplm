@@ -1,0 +1,88 @@
+{
+  "captured_at": "2026-07-02",
+  "source": "MES modeling API, read-only metadata snapshot",
+  "security_note": "No cookie, token, password, or authorization header is stored in this file.",
+  "objects": [
+    {
+      "objectName": "ProductDef",
+      "titleZh": "产品规格",
+      "titleEn": "Product Def",
+      "recordHistoryFlag": true,
+      "keyAttributes": ["productDefName", "productDefVersion"],
+      "totalCountAtCapture": 3,
+      "responseShape": ["objectDef", "attributes", "values", "keyAttributes", "totalCount", "totalPage"],
+      "attributes": [
+        {"attributeName": "productDefName", "titleZh": "产品名称", "titleEn": "Product Name", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": false, "widgetType": "text", "tableName": "PRODUCT_DEF", "columnName": "PRODUCT_DEF_NAME"},
+        {"attributeName": "productDefVersion", "titleZh": "产品版本", "titleEn": "Product Version", "dataType": "string", "len": 30, "nullable": true, "display": true, "editable": false, "widgetType": "text", "tableName": "PRODUCT_DEF", "columnName": "PRODUCT_DEF_VERSION"},
+        {"attributeName": "description", "titleZh": "产品描述", "titleEn": "Product Description", "dataType": "string", "len": 300, "nullable": true, "display": true, "editable": true, "widgetType": "textarea", "tableName": "PRODUCT_DEF", "columnName": "DESCRIPTION"},
+        {"attributeName": "productDefState", "titleZh": "产品状态", "titleEn": "Product State", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": false, "widgetType": "singlelist", "dataSource": "ENUM::VerState", "defaultValue": "Unfrozen", "tableName": "PRODUCT_DEF", "columnName": "PRODUCT_DEF_STATE"},
+        {"attributeName": "productType", "titleZh": "产品类型", "titleEn": "Product Type", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": false, "widgetType": "singlelist", "dataSource": "ENUM::ProductType", "tableName": "PRODUCT_DEF", "columnName": "PRODUCT_TYPE"},
+        {"attributeName": "productionType", "titleZh": "生产类型", "titleEn": "Production Type", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": false, "widgetType": "singlelist", "dataSource": "ENUM::ProductionType", "tableName": "PRODUCT_DEF", "columnName": "PRODUCTION_TYPE"},
+        {"attributeName": "productGroupName", "titleZh": "产品组", "titleEn": "Product Group", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "PRODUCT_DEF", "columnName": "PRODUCT_GROUP_NAME"},
+        {"attributeName": "processFlowName", "titleZh": "流程名称", "titleEn": "Flow Name", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "PRODUCT_DEF", "columnName": "PROCESS_FLOW_NAME"},
+        {"attributeName": "processFlowVersion", "titleZh": "流程版本", "titleEn": "Flow Version", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "API", "tableName": "PRODUCT_DEF", "columnName": "PROCESS_FLOW_VERSION"},
+        {"attributeName": "bomName", "titleZh": "用料表名称", "titleEn": "BOM Name", "dataType": "string", "len": 60, "nullable": false, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "PRODUCT_DEF", "columnName": "BOM_NAME"},
+        {"attributeName": "bomVersion", "titleZh": "用料表版本", "titleEn": "BOM Version", "dataType": "string", "len": 60, "nullable": true, "display": false, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "PRODUCT_DEF", "columnName": "BOM_VERSION"},
+        {"attributeName": "reticleSetName", "titleZh": "光罩集", "titleEn": "Reticle Set", "dataType": "string", "len": 30, "nullable": true, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "PRODUCT_DEF", "columnName": "RETICLE_SET_NAME"},
+        {"attributeName": "grossDie", "titleZh": "芯片总数", "titleEn": "Gross Die", "dataType": "int", "len": 9, "nullable": true, "display": true, "editable": true, "widgetType": "text", "tableName": "PRODUCT_DEF", "columnName": "GROSS_DIE"},
+        {"attributeName": "startBankName", "titleZh": "投产线边仓", "titleEn": "Start Bank", "dataType": "string", "len": 30, "nullable": true, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "PRODUCT_DEF", "columnName": "START_BANK_NAME"},
+        {"attributeName": "endBankName", "titleZh": "完工线边仓", "titleEn": "End Bank", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "PRODUCT_DEF", "columnName": "END_BANK_NAME"},
+        {"attributeName": "owner", "titleZh": "所有者", "titleEn": "Owner", "dataType": "string", "len": 30, "nullable": true, "display": true, "editable": false, "widgetType": "text", "tableName": "PRODUCT_DEF", "columnName": "OWNER"},
+        {"attributeName": "maxUseCount", "titleZh": "最大使用次数", "titleEn": "Max Use Count", "dataType": "int", "len": 32, "nullable": false, "display": true, "editable": true, "widgetType": "text", "tableName": "PRODUCT_DEF", "columnName": "MAX_USE_COUNT"},
+        {"attributeName": "maxRecycleCount", "titleZh": "最大回收次数", "titleEn": "Max Recycle Count", "dataType": "int", "len": 32, "nullable": false, "display": true, "editable": true, "widgetType": "text", "tableName": "PRODUCT_DEF", "columnName": "MAX_RECYCLE_COUNT"},
+        {"attributeName": "ownerGroupName", "titleZh": "所有者组", "titleEn": "Owner Group Name", "dataType": "string", "len": 30, "nullable": true, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "PRODUCT_DEF", "columnName": "OWNER_GROUP_NAME"},
+        {"attributeName": "dummyMaxUseTime", "titleZh": "Dummy最大使用时间(分钟)", "titleEn": "Dummy Max Use Time", "dataType": "int", "nullable": true, "display": true, "editable": true, "widgetType": "text", "tableName": "PRODUCT_DEF", "columnName": "DUMMY_MAX_USE_TIME"},
+        {"attributeName": "dummyThkParam", "titleZh": "膜厚参数名称", "titleEn": "Dummy THK Param", "dataType": "string", "len": 100, "nullable": true, "display": true, "editable": true, "widgetType": "text", "defaultValue": "DMY_THK", "tableName": "PRODUCT_DEF", "columnName": "DUMMY_THK_PARAM"},
+        {"attributeName": "dummyThkLimit", "titleZh": "Dummy片膜厚上限(um)", "titleEn": "Dummy THK Limit(um)", "dataType": "float", "len": 11, "precision": 2, "nullable": true, "display": true, "editable": true, "widgetType": "text", "tableName": "PRODUCT_DEF", "columnName": "DUMMY_THK_LIMIT"},
+        {"attributeName": "binName", "titleZh": "Bin名称", "titleEn": "Bin Name", "dataType": "string", "len": 60, "nullable": true, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "PRODUCT_DEF", "columnName": "BIN_NAME"},
+        {"attributeName": "packageQty", "titleZh": "包装数量", "titleEn": "Package Qty", "dataType": "int", "len": 9, "nullable": true, "display": true, "editable": true, "widgetType": "text", "tableName": "PRODUCT_DEF", "columnName": "PACKAGE_QTY"},
+        {"attributeName": "productUsage", "titleZh": "NPW产品用途", "titleEn": "Product Usage", "dataType": "string", "len": 30, "nullable": true, "display": true, "editable": true, "widgetType": "singlelist", "dataSource": "ENUM::ProductUsage", "tableName": "PRODUCT_DEF", "columnName": "PRODUCT_USAGE"}
+      ],
+      "sampleValues": [
+        {"productDefName": "NLA-PROD", "productDefVersion": "001", "productType": "SBD", "productionType": "Engineering", "productGroupName": "TD-1", "processFlowName": "NLAFlow-01", "processFlowVersion": "AA", "bomName": "BOM-NLA-001", "bomVersion": null, "grossDie": 1500, "endBankName": "BANK_FAB", "productDefState": "Active"},
+        {"productDefName": "NWBL0625-01", "productDefVersion": "001", "productType": "SBD", "productionType": "Engineering", "productGroupName": "TD-1", "processFlowName": "JJSFlow-01", "processFlowVersion": "AA", "bomName": "BOM-NWBL0827", "bomVersion": "AA", "grossDie": 1500, "endBankName": "BANK_FAB", "productDefState": "Active"},
+        {"productDefName": "NWBL0827-01", "productDefVersion": "001", "productType": "SBD", "productionType": "Engineering", "productGroupName": "TD-1", "processFlowName": "JJSFlow-01", "processFlowVersion": "AA", "bomName": "BOM-NWBL0827", "bomVersion": null, "grossDie": 1500, "endBankName": "BANK_FAB", "productDefState": "Active"}
+      ]
+    },
+    {
+      "objectName": "EquipmentRecipe",
+      "titleZh": "设备配方",
+      "titleEn": "Equipment Recipe",
+      "recordHistoryFlag": true,
+      "keyAttributes": ["equipmentName", "equipmentRecipeName", "recipeName", "equipmentRecipeMode"],
+      "totalCountAtCapture": 325,
+      "responseShape": ["objectDef", "attributes", "values", "keyAttributes", "totalCount", "totalPage"],
+      "attributes": [
+        {"attributeName": "equipmentName", "titleZh": "设备名称", "titleEn": "EQP Name", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "API", "tableName": "EQP_RECIPE", "columnName": "EQUIPMENT_NAME"},
+        {"attributeName": "equipmentRecipeName", "titleZh": "设备配方", "titleEn": "EQP Recipe", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": true, "widgetType": "text", "tableName": "EQP_RECIPE", "columnName": "EQUIPMENT_RECIPE_NAME"},
+        {"attributeName": "description", "titleZh": "设备配方描述", "titleEn": "EQP Recipe Description", "dataType": "string", "len": 300, "nullable": true, "display": true, "editable": true, "widgetType": "text", "tableName": "EQP_RECIPE", "columnName": "DESCRIPTION"},
+        {"attributeName": "processCapabilityName", "titleZh": "制程能力", "titleEn": "Process Capacity", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "API", "tableName": "EQP_RECIPE", "columnName": "PROCESS_CAPABILITY_NAME"},
+        {"attributeName": "recipeName", "titleZh": "制程配方", "titleEn": "Process Recipe", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "EQP_RECIPE", "columnName": "RECIPE_NAME"},
+        {"attributeName": "lifeTime", "titleZh": "生命周期（小时）", "titleEn": "Life Time", "dataType": "float", "nullable": true, "display": false, "editable": true, "widgetType": "text", "tableName": "EQP_RECIPE", "columnName": "LIFE_TIME"},
+        {"attributeName": "equipmentRecipeMode", "titleZh": "设备配方模式", "titleEn": "Equipment Recipe Mode", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": true, "widgetType": "singlelist", "dataSourceKind": "API", "tableName": "EQP_RECIPE", "columnName": "EQUIPMENT_RECIPE_MODE"},
+        {"attributeName": "equipmentChamberFlow", "titleZh": "设备Chamber流程", "titleEn": "Equipment Chamber Flow", "dataType": "string", "len": 900, "nullable": true, "display": true, "editable": true, "widgetType": "text", "tableName": "EQP_RECIPE", "columnName": "EQUIPMENT_CHAMBER_FLOW"},
+        {"attributeName": "equipmentRecipeState", "titleZh": "是否生效", "titleEn": "Effective", "dataType": "string", "len": 30, "nullable": false, "display": true, "editable": true, "widgetType": "singlelist", "dataSource": "ENUM::DefState", "defaultValue": "Valid", "tableName": "EQP_RECIPE", "columnName": "EQUIPMENT_RECIPE_STATE"},
+        {"attributeName": "expirAlarmId", "titleZh": "设备配方失效告警", "titleEn": "Expire Alarm ID", "dataType": "string", "len": 40, "nullable": true, "display": false, "editable": true, "widgetType": "singlelist", "dataSourceKind": "SQL", "tableName": "EQP_RECIPE", "columnName": "EXPIR_ALARMID"}
+      ],
+      "sampleValues": [
+        {"equipmentName": "ABEGR01", "equipmentRecipeName": "JJS0827-GRD-BE-GRD-V1", "processCapabilityName": "BE-GRD", "recipeName": "BE-GRD^JJS0827-GRD-BE-GRD-V1", "equipmentRecipeMode": "Common", "equipmentRecipeState": "Valid"},
+        {"equipmentName": "ABEGR01", "equipmentRecipeName": "JJS0827-OXR-BE-GRD-V1", "processCapabilityName": "BE-GRD", "recipeName": "BE-GRD^JJS0827-OXR-BE-GRD-V1", "equipmentRecipeMode": "Common", "equipmentRecipeState": "Valid"},
+        {"equipmentName": "ABELC01", "equipmentRecipeName": "JJS0827-DCI-BE-LSC-V1", "processCapabilityName": "BE-LSC", "recipeName": "BE-LSC^JJS0827-DCI-BE-LSC-V1", "equipmentRecipeMode": "Common", "equipmentRecipeState": "Valid"}
+      ]
+    }
+  ],
+  "productDetailShape": {
+    "endpointPattern": "/product/{productDefName}/{productDefVersion}/detail?type={type}",
+    "topLevelKeys": ["extProps", "id", "name", "version", "basicInfo", "seqLo", "seqGraphLo", "content", "alter", "measure", "action", "qTime", "contamination", "parameter", "bonds", "canEdit", "flowChanged", "objectName"],
+    "basicInfo": {"attributeCount": 33, "valueCount": 1},
+    "modules": {
+      "Content": {"attributeCount": 20, "sampleItemCount": 220},
+      "Parameter": {"attributeCount": 11, "sampleItemCount": 0},
+      "Measure": {"attributeCount": 18, "sampleItemCount": 220},
+      "Qtime": {"attributeCount": 30, "sampleItemCount": 0},
+      "Contamination": {"attributeCount": 10, "sampleItemCount": 220},
+      "Action": {"attributeCount": 10, "sampleItemCount": 0},
+      "Alter": {"attributeCount": 18, "sampleItemCount": 0}
+    }
+  }
+}

@@ -399,7 +399,6 @@ import {
   getChanges,
   getDocumentVersionHistory,
   getProductEffectivityBatches,
-  getProcessRouteVersionHistory,
   getProducts,
   submitChange,
   updateChange,
@@ -490,7 +489,7 @@ async function showArchiveDetail(row: any) {
     } else if (row.target_type === '文档' && row.target_id) {
       versionHistory.value = await getDocumentVersionHistory(row.target_id)
     } else if (row.target_type === '工艺路线' && row.target_id) {
-      versionHistory.value = await getProcessRouteVersionHistory(row.target_id)
+      versionHistory.value = []
     }
   } catch {
     versionHistory.value = []

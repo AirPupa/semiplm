@@ -12,71 +12,65 @@ from .services.versioning import is_current_effective_bom
 def serialize_product(product: models.Product) -> dict:
     return {
         "id": product.id,
-        "code": product.code,
-        "model": product.model,
-        "name": product.name,
+        "product_def_name": product.product_def_name,
+        "product_def_version": product.product_def_version,
+        "description": product.description,
+        "product_def_state": product.product_def_state,
         "product_type": product.product_type,
-        "process_platform": product.process_platform,
-        "wafer_size": product.wafer_size,
-        "package_type": product.package_type,
-        "temperature_grade": product.temperature_grade,
-        "quality_grade": product.quality_grade,
-        "application": product.application,
-        "lifecycle": product.lifecycle,
+        "production_type": product.production_type,
+        "product_group_name": product.product_group_name,
+        "process_flow_name": product.process_flow_name,
+        "process_flow_version": product.process_flow_version,
+        "bom_name": product.bom_name,
+        "bom_version": product.bom_version,
+        "reticle_set_name": product.reticle_set_name,
+        "gross_die": product.gross_die,
+        "start_bank_name": product.start_bank_name,
+        "end_bank_name": product.end_bank_name,
         "owner": product.owner,
-        "customer_part_no": product.customer_part_no,
-        "internal_part_no": product.internal_part_no,
-        "version": product.version,
-        "readiness": product.readiness,
-        "latest_release": product.latest_release,
+        "max_use_count": product.max_use_count,
+        "max_recycle_count": product.max_recycle_count,
+        "owner_group_name": product.owner_group_name,
+        "dummy_max_use_time": product.dummy_max_use_time,
+        "dummy_thk_param": product.dummy_thk_param,
+        "dummy_thk_limit": product.dummy_thk_limit,
+        "is_deleted": product.is_deleted,
+        "bin_name": product.bin_name,
+        "package_qty": product.package_qty,
+        "product_usage": product.product_usage,
     }
 
 
 def serialize_bom_item(item: models.BomItem) -> dict:
     return {
         "id": item.id,
-        "parent_id": item.parent_id,
-        "material_code": item.material_code,
-        "material_name": item.material_name,
-        "category": item.category,
-        "specification": item.specification,
-        "quantity": item.quantity,
+        "idx": item.idx,
+        "bom_name": item.bom_name,
+        "bom_version": item.bom_version,
+        "material_type": item.material_type,
+        "material_def_name": item.material_def_name,
+        "material_def_version": item.material_def_version,
+        "require_quantity": item.require_quantity,
         "unit": item.unit,
-        "position": item.position,
-        "process_step_id": item.process_step_id,
-        "process_step": item.process_step,
-        "substitute": item.substitute,
-        "status": item.status,
-        "effective_date": item.effective_date,
-        "expiry_date": item.expiry_date,
-        "effectivity_note": item.effectivity_note,
+        "process_step_name": item.process_step_name,
+        "process_step_version": item.process_step_version,
     }
 
 
 def serialize_bom(row: models.BomHeader) -> dict:
     return {
         "id": row.id,
-        "product_id": row.product_id,
-        "product_model": row.product.model,
-        "product_name": row.product.name,
-        "bom_type": row.bom_type,
-        "type": row.bom_type,
-        "version": row.version,
-        "status": row.status,
+        "bom_state": row.bom_state,
+        "bom_name": row.bom_name,
+        "bom_version": row.bom_version,
+        "description": row.description,
         "owner": row.owner,
-        "release_date": row.release_date,
-        "source_bom_id": row.source_bom_id,
-        "effective_date": row.effective_date,
-        "expiry_date": row.expiry_date,
-        "effectivity_type": row.effectivity_type,
-        "is_current": is_current_effective_bom(row),
-        "effective_batch": row.effective_batch,
         "items": [serialize_bom_item(item) for item in sorted(row.items, key=lambda item: item.id)],
     }
 
 
 def bom_item_compare_key(item: models.BomItem) -> tuple[str, str, str]:
-    return (item.material_code, item.process_step or "", item.position or "")
+    return (item.material_def_name or "", item.process_step_name or "", str(item.idx or ""))
 
 
 def serialize_bom_compare_item(kind: str, item: models.BomItem | None, base: models.BomItem | None = None) -> dict:
@@ -84,43 +78,29 @@ def serialize_bom_compare_item(kind: str, item: models.BomItem | None, base: mod
     assert active is not None
     return {
         "change_type": kind,
-        "material_code": active.material_code,
-        "material_name": active.material_name,
-        "process_step": active.process_step,
-        "from_quantity": base.quantity if base else None,
-        "to_quantity": item.quantity if item else None,
-        "from_status": base.status if base else "",
-        "to_status": item.status if item else "",
-        "from_effective_date": base.effective_date if base else "",
-        "to_effective_date": item.effective_date if item else "",
+        "material_def_name": active.material_def_name,
+        "material_type": active.material_type,
+        "process_step_name": active.process_step_name,
+        "from_quantity": base.require_quantity if base else None,
+        "to_quantity": item.require_quantity if item else None,
+        "from_unit": base.unit if base else "",
+        "to_unit": item.unit if item else "",
     }
 
 
-def serialize_process_route(row: models.ProcessRoute) -> dict:
+def serialize_process_flow(row: models.ProcessFlow) -> dict:
     return {
         "id": row.id,
-        "product_id": row.product_id,
-        "route_no": row.route_no,
-        "name": row.name,
-        "product_model": row.product.model,
-        "version": row.version,
-        "status": row.status,
+        "process_flow_name": row.process_flow_name,
+        "process_flow_version": row.process_flow_version,
+        "description": row.description,
+        "process_flow_type1": row.process_flow_type1,
+        "process_flow_type2": row.process_flow_type2,
+        "process_flow_state": row.process_flow_state,
+        "owner_group_name": row.owner_group_name,
         "owner": row.owner,
-        "release_date": row.release_date,
-        "source_route_id": row.source_route_id,
-        "effective_batch": row.effective_batch,
-        "steps": [
-            {
-                "id": step.id,
-                "sequence": step.sequence,
-                "stage": step.stage,
-                "operation": step.operation,
-                "key_params": step.key_params,
-                "owner": step.owner,
-                "status": step.status,
-            }
-            for step in sorted(row.steps, key=lambda item: item.sequence)
-        ],
+        "process_group_name": row.process_group_name,
+        "is_deleted": row.is_deleted,
     }
 
 
@@ -171,7 +151,7 @@ def serialize_change(row: models.Change, db: Session) -> dict:
         "id": row.id,
         "product_id": row.product_id,
         "change_no": row.change_no,
-        "product_model": row.product.model if row.product else "",
+        "product_model": row.product.product_def_name if row.product else "",
         "change_type": row.change_type,
         "reason": row.reason,
         "status": row.status,

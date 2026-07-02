@@ -67,7 +67,7 @@ def workbench(db: Session = Depends(get_db), context: dict = Depends(current_use
         .limit(12)
         .all()
     )
-    gate_rows = db.query(models.Product).order_by(models.Product.readiness).limit(8).all()
+    gate_rows = db.query(models.Product).order_by(models.Product.id.desc()).limit(8).all()
 
     my_changes = (
         db.query(models.Change)
@@ -406,15 +406,25 @@ def workbench_closure_check(db: Session = Depends(get_db)) -> dict:
     for p in products:
         req_count = db.query(models.Requirement).filter(models.Requirement.product_id == p.id).count()
         version_count = db.query(models.ProductVersion).filter(models.ProductVersion.product_id == p.id).count()
-        bom_count = db.query(models.BomHeader).filter(models.BomHeader.product_id == p.id).count()
-        route_count = db.query(models.ProcessRoute).filter(models.ProcessRoute.product_id == p.id).count()
+        bom_count = 0
+        if p.bom_name:
+            bom_count = db.query(models.BomHeader).filter(
+                models.BomHeader.bom_name == p.bom_name,
+                models.BomHeader.bom_version == p.bom_version,
+            ).count()
+        route_count = 0
+        if p.process_flow_name:
+            route_count = db.query(models.ProcessFlow).filter(
+                models.ProcessFlow.process_flow_name == p.process_flow_name,
+                models.ProcessFlow.process_flow_version == p.process_flow_version,
+            ).count()
         doc_count = db.query(models.Document).filter(models.Document.product_id == p.id).count()
         change_count = db.query(models.Change).filter(models.Change.product_id == p.id).count()
         # 项目通过 product_model 关联
-        project_count = db.query(models.Project).filter(models.Project.product_model == p.model).count()
+        project_count = db.query(models.Project).filter(models.Project.product_model == p.product_def_name).count()
         quality_count = db.query(models.QualityLot).filter(models.QualityLot.product_id == p.id).count()
         # 集成：该产品相关对象产生的集成任务
-        integration_count = db.query(models.IntegrationJob).filter(models.IntegrationJob.product_model == p.model).count()
+        integration_count = db.query(models.IntegrationJob).filter(models.IntegrationJob.product_model == p.product_def_name).count()
 
         counts = {
             "requirement": req_count,

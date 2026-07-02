@@ -1,0 +1,78 @@
+﻿<!DOCTYPE html><html lang=en><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta http-equiv=X-UA-Compatible content="IE=9;IE=10;IE=11;IE=Edge,chrome=1"><meta name=viewport content="width=device-width,initial-scale=1"><link rel=icon href=/dmo/mes/modeling/favicon.ico><title></title><link href=/platform/static/css/main.css rel=stylesheet><link href=/platform/static/css/font-awesome.min.css rel=stylesheet><style type=text/css>.svg-icon {
+      width: 40px;
+      height: 40px;
+      /* stroke: #343640;
+      stroke-width: 2; */
+      stroke-linecap: round;
+    }
+
+    .svg-icon .path {
+      fill: none;
+    }
+
+    .m-wipe {
+      background: none;
+      animation: loading-rotate 2s linear infinite;
+    }
+
+    .m-wipe .path {
+      background: none;
+      stroke-dasharray: 90, 150;
+      stroke-dashoffset: 0;
+      stroke-linecap: round;
+      stroke-width: 2px;
+      stroke: #20a0ff;
+      stroke-linecap: round;
+      animation: loading-wipe 1.5s ease-in-out infinite;
+    }
+
+    .m-loading {
+      background: none;
+      animation: loading-rotate 0.8s linear infinite;
+    }
+
+    @keyframes loading-rotate {
+      to {
+        transform: rotate(1turn)
+      }
+    }
+
+    @keyframes loading-wipe {
+      0% {
+        stroke-dasharray: 1, 200;
+        stroke-dashoffset: 0;
+      }
+      50% {
+        stroke-dasharray: 90, 150;
+        stroke-dashoffset: -40px;
+      }
+      to {
+        stroke-dasharray: 90, 150;
+        stroke-dashoffset: -120px;
+      }
+    }
+
+    .init-box {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+
+    .init-box .init-loading {
+      width: 128px;
+      height: 128px;
+      margin: 0 auto;
+      display: block;
+    }
+
+    .init-box .init-tips {
+      color: #8B90A0;
+      text-align: center;
+      margin: 0 auto;
+    }</style></head><body><noscript><strong>We're sorry but vue-drag-component doesn't work properly without JavaScript enabled. Please enable it to continue.</strong></noscript><div id=app><div class=init-box><div><svg viewBox="0 0 50 50" class="svg-icon m-loading init-loading"><circle cx=25 cy=25 r=20 fill=none stroke=#F2F2F2 class=path></circle><circle cx=25 cy=25 r=20 fill=none stroke=#24A2FF stroke-dasharray=60,150 class=path></circle></svg></div><p class=init-tips>å è½½ä¸­ï¼è¯·èå¿ç­å¾...</p></div></div><script src="/dmo/mes/modeling/static/config/config.js?time=1776387388592"></script><script src=/platform/static/js/plugins/vue/vue.min.js></script><script src=/platform/static/js/plugins/vue-router/vue-router.min.js></script><script src=/platform/static/js/plugins/axios/axios.min.js></script><script src=/platform/static/js/plugins/element-ui/index.js></script><script src=/platform/static/js/plugins/vuex/vuex.min.js></script><script src=/platform/static/js/plugins/vue-i18n/vue-i18n.min.js></script><script src=/dmo/mes/modeling/static/js/app.44d5125c.js></script></body></html>

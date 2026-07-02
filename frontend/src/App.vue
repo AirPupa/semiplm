@@ -119,8 +119,14 @@ const menuGroups = [
     title: '工艺管理',
     icon: IconFolder,
     children: [
-      { path: '/process', title: '工艺路线', permission: 'process' },
-      { path: '/process-parameters', title: '工艺参数库', permission: 'process' }
+      { path: '/process', title: '工艺流程', permission: 'process' },
+      { path: '/process-steps', title: '标准工序', permission: 'process' },
+      { path: '/process-stages', title: '工艺阶段', permission: 'process' },
+      { path: '/process-capabilities', title: '工艺能力', permission: 'process' },
+      { path: '/recipes', title: '工艺配方', permission: 'process' },
+      { path: '/equipment-types', title: '设备类型', permission: 'process' },
+      { path: '/equipment-capabilities', title: '设备能力', permission: 'process' },
+      { path: '/process-parameters', title: '工艺参数', permission: 'process' }
     ],
   },
   {
@@ -201,8 +207,12 @@ const currentGroup = computed(() => {
   return ''
 })
 async function loadSession() {
-  if (!localStorage.getItem('semiplm.currentUser')) return
-  await refreshSession()
+  if (router.currentRoute.value.meta.public) return
+  try {
+    await refreshSession()
+  } catch {
+    session.value = null
+  }
 }
 
 function handleLogout() {

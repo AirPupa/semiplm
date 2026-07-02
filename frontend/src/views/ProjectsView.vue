@@ -564,7 +564,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   advanceProjectPhase, archiveProject, createProject, createProjectDeliverable, createProjectFromTemplate, createProjectRisk, createProjectTask, createProjectTemplate, deleteProject, deleteProjectDeliverable,
-  deleteProjectRisk, deleteProjectTask, deleteProjectTemplate, getBoms, getDocuments, getProducts, getProjects, getProjectTemplates, getProjectArchivePackage, getProjectCrossModules, getProjectClosureCheck, getRoutes, unarchiveProject, updateProject, updateProjectDeliverable,
+  deleteProjectRisk, deleteProjectTask, deleteProjectTemplate, getBoms, getDocuments, getProducts, getProjects, getProjectTemplates, getProjectArchivePackage, getProjectCrossModules, getProjectClosureCheck, getProcessFlows, unarchiveProject, updateProject, updateProjectDeliverable,
   updateProjectRisk, updateProjectTask, updateProjectTemplate,
 } from '../api'
 import { useAuth } from '../auth'
@@ -946,7 +946,7 @@ onMounted(async () => {
   const [bomRes, docRes, routeRes] = await Promise.all([
     getBoms({ page: 1, page_size: 1000 }),
     getDocuments({ page: 1, page_size: 1000 }),
-    getRoutes({ page: 1, page_size: 1000 }),
+    getProcessFlows({ page: 1, page_size: 1000 }),
   ])
   bomList.value = bomRes.items ?? bomRes
   documentList.value = docRes.items ?? docRes

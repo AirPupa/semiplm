@@ -65,8 +65,21 @@ def report_completeness(db: Session = Depends(get_db)) -> dict:
     req_ready = 0
     for p in products:
         has_doc = db.query(models.Document).filter(models.Document.product_id == p.id).count() > 0
-        has_bom = db.query(models.BomHeader).filter(models.BomHeader.product_id == p.id).count() > 0
-        has_route = db.query(models.ProcessRoute).filter(models.ProcessRoute.product_id == p.id).count() > 0
+        has_bom = bool(
+            p.bom_name
+            and db.query(models.BomHeader)
+            .filter(models.BomHeader.bom_name == p.bom_name, models.BomHeader.bom_version == p.bom_version)
+            .count()
+        )
+        has_route = bool(
+            p.process_flow_name
+            and db.query(models.ProcessFlow)
+            .filter(
+                models.ProcessFlow.process_flow_name == p.process_flow_name,
+                models.ProcessFlow.process_flow_version == p.process_flow_version,
+            )
+            .count()
+        )
         has_req = db.query(models.Requirement).filter(models.Requirement.product_id == p.id).count() > 0
         if has_doc:
             doc_ready += 1
@@ -96,10 +109,10 @@ def report_completeness(db: Session = Depends(get_db)) -> dict:
     doc_signed = db.query(models.Document).filter(models.Document.approval_status == "已签核").count()
     # BOM 已发布率
     bom_total = db.query(models.BomHeader).count()
-    bom_released = db.query(models.BomHeader).filter(models.BomHeader.status == "已发布").count()
+    bom_released = db.query(models.BomHeader).filter(models.BomHeader.bom_state == "Active").count()
     # 工艺已发布率
-    route_total = db.query(models.ProcessRoute).count()
-    route_released = db.query(models.ProcessRoute).filter(models.ProcessRoute.status == "已发布").count()
+    route_total = db.query(models.ProcessFlow).count()
+    route_released = db.query(models.ProcessFlow).filter(models.ProcessFlow.process_flow_state == "Active").count()
 
     return {
         "summary": {

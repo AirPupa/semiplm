@@ -18,7 +18,7 @@
 - 主数据：产品、产品版本、需求规格、物料、替代料、供应商。
 - 文档：文档 CRUD、提交/发布、版本历史、PDF/图片预览、发放/回收、通用附件。
 - BOM：EBOM/PBOM/MBOM 转换基础、明细维护、有效期、版本约束、比较、反查、导入导出、批量编辑、基线、版本历史。
-- 工艺：工艺路线、工序、工艺参数、工序物料绑定、提交/发布、MES 队列、版本历史。
+- 工艺：工艺流程、标准工序、工艺参数、工序物料绑定、提交/发布、MES 队列、版本历史。
 - 变更：PR、ECR/ECO/ECN、影响分析、ECA 动作、执行关闭、对象升版、版本归档、生效批次、ERP/MES ECN 队列。
 - 项目：项目、模板、任务、交付物、风险、阶段门推进、甘特图、交付物关联对象并在审批发布后自动完成。
 - 质量：质量问题、CAPA、质量报告归档、质量问题触发 ECR、Lot/Wafer 追溯引用。
@@ -40,7 +40,7 @@
    补齐转换后的差异对比、工序物料分配完整性、转换结果可追溯。
 
 2. 项目跨模块关联展示  
-   项目详情聚合展示关联 BOM、文档、变更、质量问题、工艺路线。
+   项目详情聚合展示关联 BOM、文档、变更、质量问题、工艺流程。
 
 3. 交付物与 BOM/文档联动深化  
    交付物绑定具体 BOM 版本或文档版本；阶段门/结项校验交付物齐套。
@@ -55,6 +55,74 @@
    ECO 审批通过后关联文档自动升版，并按发放规则触发发放记录。
 
 原计划的「BOM 打印/采购清单拆分」已移除：采购清单拆分归属 ERP 职责，PLM 仅负责 BOM 结构与发布，发布后通过集成队列推送 ERP 由其执行 MRP 与采购拆分。BOM Excel 导出能力已满足研发阶段的人工筛选需求。
+
+## 二期：MES 对齐改造（V2 推翻重做版）
+
+> ⚠️ 二期规划已升级为 V2，详见 `PHASE2_DEV_PLAN_V2.md`。旧 `PHASE2_MES_ALIGNMENT_PLAN.md` 已标注作废。
+> V2 核心变化：设备类型+设备能力归 PLM 主控（PLM 主控表从 12 张扩到 14 张），改造范围从 6 菜单扩到 11 菜单，代码策略从增量改造改为推翻重做。
+
+一期深化已完成，二期目标是让 PLM 产品、工艺、BOM、集成的结构对齐 MES Template V1.2 制造建模（21 张表 277 字段），支持初始化从 MES 反向导入，支持发布后同步给 MES。
+
+核心原则：PLM 是源头，严格按 MES Template V1.2 表结构开发，现有代码/MD 可推翻重做。
+
+### 改造范围（11 菜单 + 2 轻量调整）
+
+1. 产品中心 > 产品库：ProductDef 26 字段推翻重做，加 processFlowName+Version 引用字段（架构独立化解耦 product_id）
+2. 工艺管理 > 工艺流程：ProcessFlow 10 字段，详情页 5 tab（工序/制程内容/量测/防污染，分支返工并入 Content tab）
+3. 工艺管理 > 标准工序（新）：ProcessStep 21 字段，独立菜单被 Seq 引用
+4. 工艺管理 > 工艺阶段（新）：ProcessStage 7 字段
+5. 工艺管理 > 工艺能力（新）：ProcessCapability 3 字段
+6. 工艺管理 > 工艺配方（新）：Recipe 7 字段，不含物理参数
+7. 工艺管理 > 设备类型（新）：EquipmentType 12 字段
+8. 工艺管理 > 设备能力（新）：EquipmentCapability 4 字段，equipmentName→equipment_type_name 改造
+9. BOM 管理 > 设计 BOM：Bom 5 字段 + BomItem 10 字段三段式 + 工步绑定，解耦 product_id
+10. 物料库：ConsumableDef 前 11 字段技术规格 PLM 主控
+11. 集成中心 > 同步队列：MesSyncPackage/MesSyncItem，ECN 关闭生成同步包
+12. 基础平台：MES_* 字典裁剪保留 14 类枚举 + 系统参数加 MES 同步配置
+
+### 实施顺序（9 个里程碑）
+
+| # | 里程碑 | 内容 | 状态 |
+|---|---|---|---|
+| M1 | 数据模型重建 | 推翻 Product/Material/BomHeader/BomItem/ProcessRoute/ProcessStep 6 个旧类，新建 14 张 PLM 主控表 + MesSyncPackage/MesSyncItem。schemas.py 同步重写 | ✅ 完成 |
+| M2 | 工艺流程主菜单+5tab | routers/processes.py 重写 ProcessFlow CRUD + 5 tab（Seq/Content/Measure/Contamination）CRUD。Content tab 含分支/返工字段。ProcessView.vue 4 tab 详情页 | ✅ 完成 |
+| M3 | 6个工艺主数据菜单 | routers/process_lib.py + 6 个 View：标准工序/工艺阶段/工艺能力/工艺配方/设备类型/设备能力 全部 CRUD | ✅ 完成 |
+| M4 | 产品库改造 | routers/products.py 重写（ProductDef 26 字段过滤+引用对象查询）。ProductsView.vue 重写（26 字段表单+引用下拉）。ProductDetailView.vue 重写（引用关系双卡+规格KV+统计tile，不再内嵌8模块） | ✅ 完成 |
+| M5 | BOM三段式+物料库对齐 | BomView/MaterialsView 改造。routers/boms.py/materials.py 适配 MES Bom/BomItem 与 ConsumableDef 前 11 字段；保留比较、反查、工序覆盖率、导入导出和批量编辑 | ✅ 完成 |
+| M6 | 集成中心+MES同步包 | MesSyncPackage/MesSyncItem 落地。受控引用视图（EquipmentRecipe/Param 只读）。IntegrationsView 扩展 | ⏳ 待做 |
+| M7 | ECN联动 | ECN 关闭识别受影响对象+自动升版+生成同步包 | ⏳ 待做 |
+| M8 | 初始化导入脚本 | build_db.py 重写，主数据从 mes_discovery/mes_full_model_seed.json、mes_product_detail_deep_dive.json、mes_bom_deep_dive.json、mes_dictionary_seed.json 反向导入；PLM 仅补文档/项目/质量/待办/集成演示数据 | ✅ 完成 |
+| M9 | 字典裁剪+系统参数 | MES_* 字典保留 14 类枚举。系统参数加 MES 同步配置 | ⏳ 待做 |
+
+### M1-M4 已落地的代码变更
+
+**后端**：
+- `backend/app/models.py`：推翻 6 个旧类，新建 ProcessFlow/ProcessFlowSeq/ProcessFlowContent/ProcessFlowMeasure/ProcessFlowContamination/ProcessStage/ProcessStep(独立)/ProcessCapability/Recipe/EquipmentType/EquipmentCapability/MesSyncPackage/MesSyncItem + Product/Material/BomHeader/BomItem 重写
+- `backend/app/schemas.py`：14 张表 + Product/Material/Bom 的 Payload/UpdatePayload 全部新建
+- `backend/app/routers/processes.py`：重写为工艺流程+5tab+问题报告+工艺参数
+- `backend/app/routers/process_lib.py`：新建，6 个工艺库独立菜单 API
+- `backend/app/main.py`：注册 process_lib router
+- `backend/app/services/versioning.py`：ProcessRoute→ProcessFlow，BomHeader 字段对齐
+- `backend/app/services/process.py`：重写用 ProcessFlow
+- `backend/app/services/bootstrap.py`：清理旧表补列
+- `backend/app/serializers.py`：全部对齐新字段
+
+**验证**：app import OK / startup OK（60 张表 create_all）/ 8 个新端点烟雾测试全部 201
+
+**M2/M3 前端已完成**：ProcessView.vue 重写（4 tab 详情页）+ 6 个新 View + api/processes.ts 重写 + api/process_lib.ts 新建
+
+**M4 已落地的代码变更**：
+
+后端：
+- `backend/app/routers/products.py`：重写，过滤字段对齐 ProductDef（product_def_name/description/product_type/product_group_name/owner），新增 state+product_type 过滤；详情接口删除 selectinload(process_routes)，改为字符串引用查询 referenced_flow/referenced_bom，返回业务关联统计 + projects
+- `backend/app/services/bootstrap.py`：ensure_admin 扩展，自动补 5 个默认角色种子（ADMIN/PE_ENGINEER/PM_MANAGER/IT_ENGINEER/QE_ENGINEER），修复空库启动 admin permissions=[] 导致菜单隐藏
+- `backend/app/routers/dashboard.py`：bom_ready 过滤 BomHeader.status→BomHeader.bom_state=="Released"，修复仪表盘 500
+
+前端：
+- `frontend/src/views/ProductsView.vue`：重写，列表+表单对齐 ProductDef 26 字段，引用对象双下拉（ProcessFlow+Bom），state+type 双过滤
+- `frontend/src/views/ProductDetailView.vue`：重写，推翻原"内嵌 8 模块 tab"设计，改为引用关系双卡+规格 KV+统计 tile+项目表+版本历史
+
+**M4 架构要点**：详情页不再内嵌所有业务模块，遵循"PLM 是源头，各业务对象在自己菜单维护"原则；产品通过字符串字段引用 ProcessFlow/Bom，不外键绑定
 
 ## 生产模拟数据与数据字典改造（3 轮）
 
@@ -78,7 +146,7 @@
 | 文件 | 内容 | 用途 |
 | --- | --- | --- |
 | `backend/semiplm_clean.db` | 建表 + admin + 角色/数据字典/系统参数等主数据 | 生产部署起点 |
-| `backend/semiplm_demo.db` | clean + 5 产品/三层 BOM/40 文档/19 变更/5 项目/6 流程待办/集成队列等业务演示数据 | 开发演示、页面验收 |
+| `backend/semiplm_demo.db` | clean + MES 爬虫主数据（3 产品、2 工艺流程、323 流程明细、256 标准工序、84 工艺能力、324 配方、30+ 设备类型、97 设备能力、2 BOM、1746 字典项）+ PLM 协同演示数据（文档/变更/质量/项目/待办/集成队列） | 开发演示、页面验收 |
 
 `backend/app/build_db.py` 是 CLI 构建入口，**不在启动时执行**。启动流程（`backend/app/main.py`）只跑 `create_all + ensure_lightweight_schema + ensure_admin`，不灌任何业务/主数据。
 
@@ -103,7 +171,7 @@ PD-1550-10G / VCSEL-940-3W / DFB-1310-25G / LED-MICRO-RGB / SiPh-MZM-400G
 | PBOM | 1 | 由 EBOM 转换，部分已分配工序部分未分配（验证工序校验） |
 | MBOM | 1 | 由 PBOM 转换（验证转换血缘 3 层链路） |
 | 文档 | 8 | 规格/工艺/测试/可靠性/Mask/控制计划/作业指导/承认书，状态分布 |
-| 工艺路线 | 1 | 含 10 工序 |
+| 工艺流程 | 1 | 含 10 工序 |
 | 变更 | 3-4 | 覆盖审批中/执行中/已关闭，其中 1 个含已完成的文档 ECA（验证 ECO 联动） |
 | 质量问题 | 2-3 | 覆盖高/中/低严重度，处理中/CAPA执行中/已关闭 |
 | 质量报告 | 1-2 | 已归档 |

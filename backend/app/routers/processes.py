@@ -1,463 +1,683 @@
-import io
-import os
-from datetime import date, datetime
+"""制造流程 + 5 tab + 工艺参数 + 问题报告。
+对齐 MES Template V1.2：ProcessFlow/ProcessFlowSeq/ProcessFlowContent/ProcessFlowMeasure/ProcessFlowContamination/ProcessStep(独立)/ProcessStage/ProcessCapability/Recipe/EquipmentType/EquipmentCapability。
+本文件只放制造流程主菜单 + 5 tab。工艺库独立菜单放 routers/process_lib.py。问题报告/工艺参数保留。
+"""
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .. import models
 from ..database import get_db
-from ..deps import current_user_context, has_permission, require_permission
-from ..schemas import *  # noqa: F401,F403
-from ..serializers import *  # noqa: F401,F403
-from ..services.change import (
-    analyze_change_impacts,
-    apply_change_action_revision,
-    close_change_when_actions_done,
-    create_change_release_jobs,
-    get_eca_generated_object_gate,
-    validate_action_effectivity,
-    validate_change_action_target,
-    validate_eca_generated_object_ready,
+from ..deps import current_user_context, require_permission
+from ..schemas import (
+    ProcessFlowContentPayload,
+    ProcessFlowContentUpdatePayload,
+    ProcessFlowContaminationPayload,
+    ProcessFlowContaminationUpdatePayload,
+    ProcessFlowMeasurePayload,
+    ProcessFlowMeasureUpdatePayload,
+    ProcessFlowPayload,
+    ProcessFlowSeqPayload,
+    ProcessFlowSeqUpdatePayload,
+    ProcessFlowUpdatePayload,
+    ProcessParameterPayload,
+    ProcessParameterUpdatePayload,
+    ProblemReportPayload,
+    ProblemReportUpdatePayload,
 )
-from ..services.helpers import (
-    audit_log,
-    commit_or_409,
-    day_before,
-    ensure_product_exists,
-    ensure_project_exists,
-    today_text,
-    update_model,
-)
-from ..services.integration import create_integration_job
-from ..services.process import (
-    apply_bom_item_process_binding,
-    ensure_route_editable,
-    validate_process_route_ready,
-)
-from ..services.versioning import (
-    close_previous_effective_boms,
-    is_current_effective_bom,
-    next_revision,
-    next_unique_bom_version,
-    next_unique_document_no,
-    next_unique_process_version,
-    next_unique_route_no,
-)
-from ..services.workflow import start_workflow
-
+from ..services.helpers import audit_log, commit_or_409, today_text, update_model
 
 router = APIRouter()
 
 
-@router.get("/api/process-routes")
-def process_routes(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
-    q = db.query(models.ProcessRoute).options(selectinload(models.ProcessRoute.product), selectinload(models.ProcessRoute.steps))
+# ===== 制造流程 ProcessFlow =====
+@router.get("/api/process-flows")
+def list_process_flows(
+    keyword: str = "",
+    state: str = "",
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    _ctx: dict = Depends(current_user_context),
+):
+    q = db.query(models.ProcessFlow).filter(models.ProcessFlow.is_deleted == False)
     if keyword:
-        kw = f"%{keyword}%"
-        q = q.filter(models.ProcessRoute.route_no.ilike(kw) | models.ProcessRoute.name.ilike(kw))
-    total = q.count()
-    rows = q.order_by(models.ProcessRoute.id).offset((page - 1) * page_size).limit(page_size).all()
-    return {"items": [serialize_process_route(row) for row in rows], "total": total, "page": page, "page_size": page_size}
-
-
-@router.post("/api/process-routes", status_code=201)
-def create_process_route(payload: ProcessRoutePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
-    ensure_product_exists(db, payload.product_id)
-    if payload.status == "已发布":
-        raise HTTPException(status_code=409, detail="Process route must be released through approval")
-    route = models.ProcessRoute(**payload.model_dump())
-    db.add(route)
-    commit_or_409(db, "Process route number already exists")
-    db.refresh(route)
-    route = (
-        db.query(models.ProcessRoute)
-        .options(selectinload(models.ProcessRoute.product), selectinload(models.ProcessRoute.steps))
-        .filter(models.ProcessRoute.id == route.id)
-        .first()
-    )
-    assert route is not None
-    return serialize_process_route(route)
-
-
-@router.put("/api/process-routes/{route_id}")
-def update_process_route(route_id: int, payload: ProcessRouteUpdatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
-    route = (
-        db.query(models.ProcessRoute)
-        .options(selectinload(models.ProcessRoute.product), selectinload(models.ProcessRoute.steps))
-        .filter(models.ProcessRoute.id == route_id)
-        .first()
-    )
-    if not route:
-        raise HTTPException(status_code=404, detail="Process route not found")
-    ensure_route_editable(route)
-    if payload.status == "已发布":
-        raise HTTPException(status_code=409, detail="Process route must be released through approval")
-    if payload.product_id is not None:
-        ensure_product_exists(db, payload.product_id)
-    update_model(route, payload)
-    commit_or_409(db, "Process route number already exists")
-    route = (
-        db.query(models.ProcessRoute)
-        .options(selectinload(models.ProcessRoute.product), selectinload(models.ProcessRoute.steps))
-        .filter(models.ProcessRoute.id == route_id)
-        .first()
-    )
-    assert route is not None
-    return serialize_process_route(route)
-
-
-@router.delete("/api/process-routes/{route_id}")
-def delete_process_route(route_id: int, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
-    route = db.query(models.ProcessRoute).filter(models.ProcessRoute.id == route_id).first()
-    if not route:
-        raise HTTPException(status_code=404, detail="Process route not found")
-    ensure_route_editable(route)
-    db.delete(route)
-    db.commit()
-    return {"ok": True}
-
-
-@router.post("/api/process-routes/{route_id}/steps", status_code=201)
-def create_process_step(route_id: int, payload: ProcessStepPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
-    route = (
-        db.query(models.ProcessRoute)
-        .options(selectinload(models.ProcessRoute.product), selectinload(models.ProcessRoute.steps))
-        .filter(models.ProcessRoute.id == route_id)
-        .first()
-    )
-    if not route:
-        raise HTTPException(status_code=404, detail="Process route not found")
-    ensure_route_editable(route)
-    if any(step.sequence == payload.sequence for step in route.steps):
-        raise HTTPException(status_code=409, detail="Process step sequence already exists")
-    step = models.ProcessStep(route_id=route_id, **payload.model_dump())
-    db.add(step)
-    db.commit()
-    db.refresh(step)
-    return {"id": step.id, "sequence": step.sequence, "stage": step.stage, "operation": step.operation, "key_params": step.key_params, "owner": step.owner, "status": step.status}
-
-
-@router.put("/api/process-steps/{step_id}")
-def update_process_step(step_id: int, payload: ProcessStepUpdatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
-    step = (
-        db.query(models.ProcessStep)
-        .options(selectinload(models.ProcessStep.route))
-        .filter(models.ProcessStep.id == step_id)
-        .first()
-    )
-    if not step:
-        raise HTTPException(status_code=404, detail="Process step not found")
-    ensure_route_editable(step.route)
-    if payload.sequence is not None:
-        exists = (
-            db.query(models.ProcessStep.id)
-            .filter(models.ProcessStep.route_id == step.route_id, models.ProcessStep.sequence == payload.sequence, models.ProcessStep.id != step.id)
-            .first()
+        like = f"%{keyword}%"
+        q = q.filter(
+            (models.ProcessFlow.process_flow_name.like(like))
+            | (models.ProcessFlow.description.like(like))
         )
-        if exists:
-            raise HTTPException(status_code=409, detail="Process step sequence already exists")
-    update_model(step, payload)
-    db.commit()
-    db.refresh(step)
-    return {"id": step.id, "sequence": step.sequence, "stage": step.stage, "operation": step.operation, "key_params": step.key_params, "owner": step.owner, "status": step.status}
-
-
-@router.delete("/api/process-steps/{step_id}")
-def delete_process_step(step_id: int, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
-    step = (
-        db.query(models.ProcessStep)
-        .options(selectinload(models.ProcessStep.route))
-        .filter(models.ProcessStep.id == step_id)
-        .first()
-    )
-    if not step:
-        raise HTTPException(status_code=404, detail="Process step not found")
-    ensure_route_editable(step.route)
-    db.delete(step)
-    db.commit()
-    return {"ok": True}
-
-
-@router.post("/api/process-routes/{route_id}/submit")
-def submit_process_route(route_id: int, payload: ProcessRouteActionPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
-    route = (
-        db.query(models.ProcessRoute)
-        .options(selectinload(models.ProcessRoute.product), selectinload(models.ProcessRoute.steps))
-        .filter(models.ProcessRoute.id == route_id)
-        .first()
-    )
-    if not route:
-        raise HTTPException(status_code=404, detail="Process route not found")
-    validate_process_route_ready(route)
-    if route.status == "已发布":
-        raise HTTPException(status_code=409, detail="Released process route cannot be submitted")
-    if route.status == "审批中":
-        raise HTTPException(status_code=409, detail="Process route is already in review")
-    # ECA 生成对象校验：如果工艺路线有 source_route_id，说明是 ECA 升版生成的草案
-    if route.source_route_id:
-        validate_eca_generated_object_ready(db, "工艺路线", route.id, route.route_no)
-    route.status = "审批中"
-    db.commit()
-    db.refresh(route)
-    return serialize_process_route(route)
-
-
-@router.post("/api/process-routes/{route_id}/approve")
-def approve_process_route(route_id: int, payload: ProcessRouteActionPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission(["approval", "process"]))) -> dict:
-    route = (
-        db.query(models.ProcessRoute)
-        .options(selectinload(models.ProcessRoute.product), selectinload(models.ProcessRoute.steps))
-        .filter(models.ProcessRoute.id == route_id)
-        .first()
-    )
-    if not route:
-        raise HTTPException(status_code=404, detail="Process route not found")
-    validate_process_route_ready(route)
-    if route.status not in ("审批中", "已发布"):
-        raise HTTPException(status_code=409, detail="Process route must be submitted for review before approval")
-    if route.source_route_id:
-        validate_eca_generated_object_ready(db, "工艺路线", route.id, route.route_no)
-    route.status = "已发布"
-    route.release_date = today_text()
-    create_integration_job(
-        db,
-        target_system="MES",
-        object_type="工艺路线",
-        object_no=route.route_no,
-        product_model=route.product.model,
-        triggered_by=route.route_no,
-        message=f"工艺路线已发布，等待同步 MES 工艺流程、工序参数和站点控制。发布人：{payload.acted_by}",
-    )
-    db.commit()
-    db.refresh(route)
-    return serialize_process_route(route)
-
-
-@router.get("/api/products/{product_id}/process-steps")
-def product_process_steps(product_id: int, db: Session = Depends(get_db)) -> list[dict]:
-    ensure_product_exists(db, product_id)
-    rows = (
-        db.query(models.ProcessStep)
-        .join(models.ProcessRoute)
-        .filter(models.ProcessRoute.product_id == product_id)
-        .order_by(models.ProcessRoute.version.desc(), models.ProcessStep.sequence)
+    if state:
+        q = q.filter(models.ProcessFlow.process_flow_state == state)
+    total = q.count()
+    items = (
+        q.order_by(models.ProcessFlow.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
         .all()
     )
-    return [
-        {
-            "id": step.id,
-            "route_id": step.route_id,
-            "sequence": step.sequence,
-            "stage": step.stage,
-            "operation": step.operation,
-            "key_params": step.key_params,
-            "owner": step.owner,
-            "status": step.status,
-            "label": f"{step.sequence}-{step.stage} / {step.operation}",
-        }
-        for step in rows
-    ]
-
-@router.get("/api/process-routes/{route_id}/version-history")
-def process_route_version_history(route_id: int, db: Session = Depends(get_db)) -> list[dict]:
-    """追溯工艺路线版本链路：来源路线、生成变更单和发布门状态。"""
-    route = db.query(models.ProcessRoute).options(selectinload(models.ProcessRoute.product)).filter(models.ProcessRoute.id == route_id).first()
-    if not route:
-        raise HTTPException(status_code=404, detail="Process route not found")
-
-    chain: list[models.ProcessRoute] = []
-    current = route
-    visited = set()
-    while current and current.id not in visited:
-        visited.add(current.id)
-        chain.append(current)
-        if current.source_route_id:
-            current = db.query(models.ProcessRoute).filter(models.ProcessRoute.id == current.source_route_id).first()
-        else:
-            break
-    chain.reverse()
-
-    history = []
-    for item in chain:
-        eca_action = (
-            db.query(models.ChangeAction)
-            .filter(
-                models.ChangeAction.target_type == "工艺路线",
-                models.ChangeAction.target_id == item.source_route_id if item.source_route_id else 0,
-            )
-            .first() if item.source_route_id else None
-        )
-        change_no = ""
-        change_status = ""
-        action_no = ""
-        effectivity_type = ""
-        effective_batch = ""
-        effective_date = ""
-        release_gate = ""
-        gate_message = ""
-        if eca_action:
-            change = db.query(models.Change).filter(models.Change.id == eca_action.change_id).first()
-            change_no = change.change_no if change else ""
-            change_status = change.status if change else ""
-            action_no = eca_action.action_no
-            effectivity_type = eca_action.effectivity_type
-            effective_batch = eca_action.effective_batch
-            effective_date = eca_action.effective_date
-            if eca_action.generated_object_no:
-                gate = get_eca_generated_object_gate(db, "工艺路线", eca_action.generated_object_no)
-                if gate:
-                    release_gate = "可提交" if gate["ready"] else "待变更闭环"
-                    gate_message = gate["message"]
-
-        history.append({
-            "id": item.id,
-            "route_no": item.route_no,
-            "version": item.version,
-            "status": item.status,
-            "name": item.name,
-            "owner": item.owner,
-            "release_date": item.release_date,
-            "effective_batch": item.effective_batch,
-            "source_route_id": item.source_route_id,
-            "is_current": item.id == route.id,
-            "change_no": change_no,
-            "change_status": change_status,
-            "eca_action_no": action_no,
-            "eca_effectivity_type": effectivity_type,
-            "eca_effective_batch": effective_batch,
-            "eca_effective_date": effective_date,
-            "release_gate_status": release_gate,
-            "release_gate_message": gate_message,
-        })
-    return history
-
-@router.get("/api/problem-reports")
-def problem_reports(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
-    q = db.query(models.ProblemReport)
-    if keyword:
-        kw = f"%{keyword}%"
-        q = q.filter(models.ProblemReport.pr_no.ilike(kw) | models.ProblemReport.title.ilike(kw))
-    total = q.count()
-    rows = q.order_by(models.ProblemReport.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
     return {
-        "items": [
-            {
-                "id": r.id,
-                "pr_no": r.pr_no,
-                "title": r.title,
-                "problem_type": r.problem_type,
-                "severity": r.severity,
-                "source": r.source,
-                "product_id": r.product_id,
-                "product_model": r.product_model,
-                "description": r.description,
-                "suggested_action": r.suggested_action,
-                "status": r.status,
-                "reporter": r.reporter,
-                "reported_at": r.reported_at,
-                "related_change_no": r.related_change_no,
-                "remark": r.remark,
-            }
-            for r in rows
-        ],
+        "items": [_flow_dict(f) for f in items],
         "total": total,
         "page": page,
         "page_size": page_size,
     }
+
+
+@router.post("/api/process-flows", status_code=201)
+def create_process_flow(
+    payload: ProcessFlowPayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    flow = models.ProcessFlow(**payload.model_dump())
+    db.add(flow)
+    try:
+        commit_or_409(db, "操作冲突")
+    except IntegrityError:
+        raise HTTPException(409, "流程名称+版本已存在")
+    audit_log(db, "create", "ProcessFlow", flow.id, flow.process_flow_name, "创建制造流程", ctx["user"])
+    return _flow_dict(flow)
+
+
+@router.get("/api/process-flows/{flow_id}")
+def get_process_flow(
+    flow_id: int,
+    db: Session = Depends(get_db),
+    _ctx: dict = Depends(current_user_context),
+):
+    flow = (
+        db.query(models.ProcessFlow)
+        .options(
+            selectinload(models.ProcessFlow.seqs),
+            selectinload(models.ProcessFlow.contents),
+            selectinload(models.ProcessFlow.measures),
+            selectinload(models.ProcessFlow.contaminations),
+        )
+        .filter(models.ProcessFlow.id == flow_id)
+        .first()
+    )
+    if not flow:
+        raise HTTPException(404, "流程不存在")
+    return _flow_detail_dict(flow)
+
+
+@router.put("/api/process-flows/{flow_id}")
+def update_process_flow(
+    flow_id: int,
+    payload: ProcessFlowUpdatePayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    flow = db.query(models.ProcessFlow).filter(models.ProcessFlow.id == flow_id).first()
+    if not flow:
+        raise HTTPException(404, "流程不存在")
+    update_model(flow, payload)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "update", "ProcessFlow", flow.id, flow.process_flow_name, "更新制造流程", ctx["user"])
+    return _flow_dict(flow)
+
+
+@router.delete("/api/process-flows/{flow_id}")
+def delete_process_flow(
+    flow_id: int,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    flow = db.query(models.ProcessFlow).filter(models.ProcessFlow.id == flow_id).first()
+    if not flow:
+        raise HTTPException(404, "流程不存在")
+    flow.is_deleted = True
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "delete", "ProcessFlow", flow.id, flow.process_flow_name, "删除制造流程", ctx["user"])
+    return {"ok": True}
+
+
+# ===== 工序 tab: ProcessFlowSeq =====
+@router.get("/api/process-flows/{flow_id}/seqs")
+def list_flow_seqs(
+    flow_id: int,
+    db: Session = Depends(get_db),
+    _ctx: dict = Depends(current_user_context),
+):
+    seqs = (
+        db.query(models.ProcessFlowSeq)
+        .filter(models.ProcessFlowSeq.flow_id == flow_id)
+        .order_by(models.ProcessFlowSeq.idx)
+        .all()
+    )
+    return {"items": [_seq_dict(s) for s in seqs]}
+
+
+@router.post("/api/process-flows/{flow_id}/seqs", status_code=201)
+def create_flow_seq(
+    flow_id: int,
+    payload: ProcessFlowSeqPayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    flow = db.query(models.ProcessFlow).filter(models.ProcessFlow.id == flow_id).first()
+    if not flow:
+        raise HTTPException(404, "流程不存在")
+    data = payload.model_dump()
+    data["flow_id"] = flow_id
+    data["process_flow_name"] = flow.process_flow_name
+    data["process_flow_version"] = flow.process_flow_version
+    seq = models.ProcessFlowSeq(**data)
+    db.add(seq)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "create", "ProcessFlowSeq", seq.id, seq.process_flow_seq_name, "新增流程工序", ctx["user"])
+    return _seq_dict(seq)
+
+
+@router.put("/api/process-flow-seqs/{seq_id}")
+def update_flow_seq(
+    seq_id: int,
+    payload: ProcessFlowSeqUpdatePayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    seq = db.query(models.ProcessFlowSeq).filter(models.ProcessFlowSeq.id == seq_id).first()
+    if not seq:
+        raise HTTPException(404, "工序不存在")
+    update_model(seq, payload)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "update", "ProcessFlowSeq", seq.id, seq.process_flow_seq_name, "更新流程工序", ctx["user"])
+    return _seq_dict(seq)
+
+
+@router.delete("/api/process-flow-seqs/{seq_id}")
+def delete_flow_seq(
+    seq_id: int,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    seq = db.query(models.ProcessFlowSeq).filter(models.ProcessFlowSeq.id == seq_id).first()
+    if not seq:
+        raise HTTPException(404, "工序不存在")
+    db.delete(seq)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "delete", "ProcessFlowSeq", seq_id, seq.process_flow_seq_name, "删除流程工序", ctx["user"])
+    return {"ok": True}
+
+
+# ===== 制程内容 tab: ProcessFlowContent（含分支/返工字段）=====
+@router.get("/api/process-flows/{flow_id}/contents")
+def list_flow_contents(
+    flow_id: int,
+    db: Session = Depends(get_db),
+    _ctx: dict = Depends(current_user_context),
+):
+    items = (
+        db.query(models.ProcessFlowContent)
+        .filter(models.ProcessFlowContent.flow_id == flow_id)
+        .all()
+    )
+    return {"items": [_content_dict(c) for c in items]}
+
+
+@router.post("/api/process-flows/{flow_id}/contents", status_code=201)
+def create_flow_content(
+    flow_id: int,
+    payload: ProcessFlowContentPayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    flow = db.query(models.ProcessFlow).filter(models.ProcessFlow.id == flow_id).first()
+    if not flow:
+        raise HTTPException(404, "流程不存在")
+    data = payload.model_dump()
+    data["flow_id"] = flow_id
+    data["process_flow_name"] = flow.process_flow_name
+    data["process_flow_version"] = flow.process_flow_version
+    c = models.ProcessFlowContent(**data)
+    db.add(c)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "create", "ProcessFlowContent", c.id, c.process_flow_seq_name, "新增制程内容", ctx["user"])
+    return _content_dict(c)
+
+
+@router.put("/api/process-flow-contents/{content_id}")
+def update_flow_content(
+    content_id: int,
+    payload: ProcessFlowContentUpdatePayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    c = db.query(models.ProcessFlowContent).filter(models.ProcessFlowContent.id == content_id).first()
+    if not c:
+        raise HTTPException(404, "制程内容不存在")
+    update_model(c, payload)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "update", "ProcessFlowContent", c.id, c.process_flow_seq_name, "更新制程内容", ctx["user"])
+    return _content_dict(c)
+
+
+@router.delete("/api/process-flow-contents/{content_id}")
+def delete_flow_content(
+    content_id: int,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    c = db.query(models.ProcessFlowContent).filter(models.ProcessFlowContent.id == content_id).first()
+    if not c:
+        raise HTTPException(404, "制程内容不存在")
+    db.delete(c)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "delete", "ProcessFlowContent", content_id, c.process_flow_seq_name, "删除制程内容", ctx["user"])
+    return {"ok": True}
+
+
+# ===== 量测 tab: ProcessFlowMeasure =====
+@router.get("/api/process-flows/{flow_id}/measures")
+def list_flow_measures(
+    flow_id: int,
+    db: Session = Depends(get_db),
+    _ctx: dict = Depends(current_user_context),
+):
+    items = (
+        db.query(models.ProcessFlowMeasure)
+        .filter(models.ProcessFlowMeasure.flow_id == flow_id)
+        .all()
+    )
+    return {"items": [_measure_dict(m) for m in items]}
+
+
+@router.post("/api/process-flows/{flow_id}/measures", status_code=201)
+def create_flow_measure(
+    flow_id: int,
+    payload: ProcessFlowMeasurePayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    flow = db.query(models.ProcessFlow).filter(models.ProcessFlow.id == flow_id).first()
+    if not flow:
+        raise HTTPException(404, "流程不存在")
+    data = payload.model_dump()
+    data["flow_id"] = flow_id
+    data["process_flow_name"] = flow.process_flow_name
+    data["process_flow_version"] = flow.process_flow_version
+    m = models.ProcessFlowMeasure(**data)
+    db.add(m)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "create", "ProcessFlowMeasure", m.id, m.measure_item, "新增量测项", ctx["user"])
+    return _measure_dict(m)
+
+
+@router.put("/api/process-flow-measures/{measure_id}")
+def update_flow_measure(
+    measure_id: int,
+    payload: ProcessFlowMeasureUpdatePayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    m = db.query(models.ProcessFlowMeasure).filter(models.ProcessFlowMeasure.id == measure_id).first()
+    if not m:
+        raise HTTPException(404, "量测项不存在")
+    update_model(m, payload)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "update", "ProcessFlowMeasure", m.id, m.measure_item, "更新量测项", ctx["user"])
+    return _measure_dict(m)
+
+
+@router.delete("/api/process-flow-measures/{measure_id}")
+def delete_flow_measure(
+    measure_id: int,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    m = db.query(models.ProcessFlowMeasure).filter(models.ProcessFlowMeasure.id == measure_id).first()
+    if not m:
+        raise HTTPException(404, "量测项不存在")
+    db.delete(m)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "delete", "ProcessFlowMeasure", measure_id, m.measure_item, "删除量测项", ctx["user"])
+    return {"ok": True}
+
+
+# ===== 防污染 tab: ProcessFlowContamination =====
+@router.get("/api/process-flows/{flow_id}/contaminations")
+def list_flow_contaminations(
+    flow_id: int,
+    db: Session = Depends(get_db),
+    _ctx: dict = Depends(current_user_context),
+):
+    items = (
+        db.query(models.ProcessFlowContamination)
+        .filter(models.ProcessFlowContamination.flow_id == flow_id)
+        .all()
+    )
+    return {"items": [_contamination_dict(c) for c in items]}
+
+
+@router.post("/api/process-flows/{flow_id}/contaminations", status_code=201)
+def create_flow_contamination(
+    flow_id: int,
+    payload: ProcessFlowContaminationPayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    flow = db.query(models.ProcessFlow).filter(models.ProcessFlow.id == flow_id).first()
+    if not flow:
+        raise HTTPException(404, "流程不存在")
+    data = payload.model_dump()
+    data["flow_id"] = flow_id
+    data["process_flow_name"] = flow.process_flow_name
+    data["process_flow_version"] = flow.process_flow_version
+    c = models.ProcessFlowContamination(**data)
+    db.add(c)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "create", "ProcessFlowContamination", c.id, c.process_flow_seq_name, "新增防污染", ctx["user"])
+    return _contamination_dict(c)
+
+
+@router.put("/api/process-flow-contaminations/{contamination_id}")
+def update_flow_contamination(
+    contamination_id: int,
+    payload: ProcessFlowContaminationUpdatePayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    c = db.query(models.ProcessFlowContamination).filter(models.ProcessFlowContamination.id == contamination_id).first()
+    if not c:
+        raise HTTPException(404, "防污染记录不存在")
+    update_model(c, payload)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "update", "ProcessFlowContamination", c.id, c.process_flow_seq_name, "更新防污染", ctx["user"])
+    return _contamination_dict(c)
+
+
+@router.delete("/api/process-flow-contaminations/{contamination_id}")
+def delete_flow_contamination(
+    contamination_id: int,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    c = db.query(models.ProcessFlowContamination).filter(models.ProcessFlowContamination.id == contamination_id).first()
+    if not c:
+        raise HTTPException(404, "防污染记录不存在")
+    db.delete(c)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "delete", "ProcessFlowContamination", contamination_id, c.process_flow_seq_name, "删除防污染", ctx["user"])
+    return {"ok": True}
+
+
+# ===== 问题报告（保留一期）=====
+@router.get("/api/problem-reports")
+def list_problem_reports(
+    keyword: str = "",
+    status: str = "",
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    _ctx: dict = Depends(current_user_context),
+):
+    q = db.query(models.ProblemReport)
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.filter(
+            (models.ProblemReport.pr_no.like(like))
+            | (models.ProblemReport.title.like(like))
+        )
+    if status:
+        q = q.filter(models.ProblemReport.status == status)
+    total = q.count()
+    items = q.order_by(models.ProblemReport.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [_pr_dict(p) for p in items], "total": total, "page": page, "page_size": page_size}
 
 
 @router.post("/api/problem-reports", status_code=201)
-def create_problem_report(payload: ProblemReportPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("change"))) -> dict:
-    count = db.query(models.ProblemReport).count() + 1
-    pr_no = payload.pr_no or f"PR-{count:04d}"
-    row = models.ProblemReport(**{**payload.model_dump(), "pr_no": pr_no})
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return {"id": row.id, "pr_no": row.pr_no}
+def create_problem_report(
+    payload: ProblemReportPayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    pr = models.ProblemReport(**payload.model_dump())
+    pr.pr_no = "PR-" + datetime.now().strftime("%Y%m%d%H%M%S")
+    pr.reporter = ctx["user"]
+    pr.reported_at = today_text()
+    db.add(pr)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "create", "ProblemReport", pr.id, pr.pr_no, "创建问题报告", ctx["user"])
+    return _pr_dict(pr)
 
 
 @router.put("/api/problem-reports/{report_id}")
-def update_problem_report(report_id: int, payload: ProblemReportUpdatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("change"))) -> dict:
-    row = db.query(models.ProblemReport).filter(models.ProblemReport.id == report_id).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Problem report not found")
-    update_model(row, payload)
-    db.commit()
-    return {"ok": True}
+def update_problem_report(
+    report_id: int,
+    payload: ProblemReportUpdatePayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    pr = db.query(models.ProblemReport).filter(models.ProblemReport.id == report_id).first()
+    if not pr:
+        raise HTTPException(404, "问题报告不存在")
+    update_model(pr, payload)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "update", "ProblemReport", pr.id, pr.pr_no, "更新问题报告", ctx["user"])
+    return _pr_dict(pr)
 
 
 @router.delete("/api/problem-reports/{report_id}")
-def delete_problem_report(report_id: int, db: Session = Depends(get_db), _: dict = Depends(require_permission("change"))) -> dict:
-    row = db.query(models.ProblemReport).filter(models.ProblemReport.id == report_id).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Problem report not found")
-    db.delete(row)
-    db.commit()
+def delete_problem_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    pr = db.query(models.ProblemReport).filter(models.ProblemReport.id == report_id).first()
+    if not pr:
+        raise HTTPException(404, "问题报告不存在")
+    db.delete(pr)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "delete", "ProblemReport", report_id, pr.pr_no, "删除问题报告", ctx["user"])
     return {"ok": True}
 
 
+# ===== 工艺参数库（保留一期）=====
 @router.get("/api/process-parameters")
-def process_parameters(page: int = 1, page_size: int = 20, keyword: str = "", db: Session = Depends(get_db)) -> dict:
+def list_process_parameters(
+    keyword: str = "",
+    param_type: str = "",
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    _ctx: dict = Depends(current_user_context),
+):
     q = db.query(models.ProcessParameter)
     if keyword:
-        kw = f"%{keyword}%"
-        q = q.filter(models.ProcessParameter.param_code.ilike(kw) | models.ProcessParameter.param_name.ilike(kw))
+        like = f"%{keyword}%"
+        q = q.filter(
+            (models.ProcessParameter.param_code.like(like))
+            | (models.ProcessParameter.param_name.like(like))
+        )
+    if param_type:
+        q = q.filter(models.ProcessParameter.param_type == param_type)
     total = q.count()
-    rows = q.order_by(models.ProcessParameter.id.asc()).offset((page - 1) * page_size).limit(page_size).all()
-    return {
-        "items": [
-            {
-                "id": r.id,
-                "param_code": r.param_code,
-                "param_name": r.param_name,
-                "param_type": r.param_type,
-                "unit": r.unit,
-                "category": r.category,
-                "default_value": r.default_value,
-                "min_value": r.min_value,
-                "max_value": r.max_value,
-                "description": r.description,
-                "status": r.status,
-            }
-            for r in rows
-        ],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
+    items = q.order_by(models.ProcessParameter.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return {"items": [_param_dict(p) for p in items], "total": total, "page": page, "page_size": page_size}
 
 
 @router.post("/api/process-parameters", status_code=201)
-def create_process_parameter(payload: ProcessParameterPayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
-    count = db.query(models.ProcessParameter).count() + 1
-    param_code = payload.param_code or f"PARAM-{count:04d}"
-    row = models.ProcessParameter(**{**payload.model_dump(), "param_code": param_code})
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return {"id": row.id, "param_code": row.param_code}
+def create_process_parameter(
+    payload: ProcessParameterPayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    p = models.ProcessParameter(**payload.model_dump())
+    if not p.param_code:
+        p.param_code = "PP-" + datetime.now().strftime("%Y%m%d%H%M%S")
+    db.add(p)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "create", "ProcessParameter", p.id, p.param_code, "创建工艺参数", ctx["user"])
+    return _param_dict(p)
 
 
 @router.put("/api/process-parameters/{param_id}")
-def update_process_parameter(param_id: int, payload: ProcessParameterUpdatePayload, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
-    row = db.query(models.ProcessParameter).filter(models.ProcessParameter.id == param_id).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Process parameter not found")
-    update_model(row, payload)
-    db.commit()
-    return {"ok": True}
+def update_process_parameter(
+    param_id: int,
+    payload: ProcessParameterUpdatePayload,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    p = db.query(models.ProcessParameter).filter(models.ProcessParameter.id == param_id).first()
+    if not p:
+        raise HTTPException(404, "工艺参数不存在")
+    update_model(p, payload)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "update", "ProcessParameter", p.id, p.param_code, "更新工艺参数", ctx["user"])
+    return _param_dict(p)
 
 
 @router.delete("/api/process-parameters/{param_id}")
-def delete_process_parameter(param_id: int, db: Session = Depends(get_db), _: dict = Depends(require_permission("process"))) -> dict:
-    row = db.query(models.ProcessParameter).filter(models.ProcessParameter.id == param_id).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Process parameter not found")
-    db.delete(row)
-    db.commit()
+def delete_process_parameter(
+    param_id: int,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(current_user_context),
+):
+    p = db.query(models.ProcessParameter).filter(models.ProcessParameter.id == param_id).first()
+    if not p:
+        raise HTTPException(404, "工艺参数不存在")
+    db.delete(p)
+    commit_or_409(db, "操作冲突")
+    audit_log(db, "delete", "ProcessParameter", param_id, p.param_code, "删除工艺参数", ctx["user"])
     return {"ok": True}
+
+
+# ===== 序列化 =====
+def _flow_dict(f: models.ProcessFlow) -> dict:
+    return {
+        "id": f.id,
+        "process_flow_name": f.process_flow_name,
+        "process_flow_version": f.process_flow_version,
+        "description": f.description,
+        "process_flow_type1": f.process_flow_type1,
+        "process_flow_type2": f.process_flow_type2,
+        "process_flow_state": f.process_flow_state,
+        "owner_group_name": f.owner_group_name,
+        "owner": f.owner,
+        "process_group_name": f.process_group_name,
+        "is_deleted": f.is_deleted,
+        "created_at": f.created_at.strftime("%Y-%m-%d %H:%M:%S") if f.created_at else "",
+    }
+
+
+def _flow_detail_dict(f: models.ProcessFlow) -> dict:
+    d = _flow_dict(f)
+    d["seqs"] = [_seq_dict(s) for s in f.seqs]
+    d["contents"] = [_content_dict(c) for c in f.contents]
+    d["measures"] = [_measure_dict(m) for m in f.measures]
+    d["contaminations"] = [_contamination_dict(c) for c in f.contaminations]
+    return d
+
+
+def _seq_dict(s: models.ProcessFlowSeq) -> dict:
+    return {
+        "id": s.id,
+        "idx": s.idx,
+        "step_source": s.step_source,
+        "process_flow_seq_name": s.process_flow_seq_name,
+        "process_flow_name": s.process_flow_name,
+        "process_flow_version": s.process_flow_version,
+        "process_name": s.process_name,
+        "process_version": s.process_version,
+        "process_flow_seq_type": s.process_flow_seq_type,
+        "process_group1": s.process_group1,
+        "process_group2": s.process_group2,
+        "process_stage_name": s.process_stage_name,
+        "work_layer": s.work_layer,
+    }
+
+
+def _content_dict(c: models.ProcessFlowContent) -> dict:
+    return {
+        "id": c.id,
+        "process_flow_seq_name": c.process_flow_seq_name,
+        "process_flow_name": c.process_flow_name,
+        "process_flow_version": c.process_flow_version,
+        "process_capability_name": c.process_capability_name,
+        "recipe_name": c.recipe_name,
+        "recipe_name_description": c.recipe_name_description,
+        "dc_spec_name": c.dc_spec_name,
+        "yield_limit": c.yield_limit,
+        "reticle_group_name": c.reticle_group_name,
+        "reticle_name": c.reticle_name,
+        "probe_card_name": c.probe_card_name,
+        "lot_sampling_rule": c.lot_sampling_rule,
+        "is_skip_allowed": c.is_skip_allowed,
+        "is_mandatory_step": c.is_mandatory_step,
+        "sampling_user_group": c.sampling_user_group,
+        "is_flip": c.is_flip,
+        "branch_flow_group": c.branch_flow_group,
+        "branch_flow_name": c.branch_flow_name,
+        "rework_flow_group": c.rework_flow_group,
+        "rework_flow_name": c.rework_flow_name,
+        "wafer_selection_rule": c.wafer_selection_rule,
+        "ink_able": c.ink_able,
+    }
+
+
+def _measure_dict(m: models.ProcessFlowMeasure) -> dict:
+    return {
+        "id": m.id,
+        "process_flow_name": m.process_flow_name,
+        "process_flow_version": m.process_flow_version,
+        "process_flow_seq_name": m.process_flow_seq_name,
+        "key_process_flow_seq_name": m.key_process_flow_seq_name,
+        "measure_item": m.measure_item,
+        "target": m.target,
+        "lower_spec_limit": m.lower_spec_limit,
+        "upper_spec_limit": m.upper_spec_limit,
+        "sample_count": m.sample_count,
+        "sample_slots": m.sample_slots,
+        "sample_count_type": m.sample_count_type,
+    }
+
+
+def _contamination_dict(c: models.ProcessFlowContamination) -> dict:
+    return {
+        "id": c.id,
+        "process_flow_name": c.process_flow_name,
+        "process_flow_version": c.process_flow_version,
+        "process_flow_seq_name": c.process_flow_seq_name,
+        "require_contamination_levels": c.require_contamination_levels,
+        "affect_contamination_level": c.affect_contamination_level,
+    }
+
+
+def _pr_dict(p: models.ProblemReport) -> dict:
+    return {
+        "id": p.id,
+        "pr_no": p.pr_no,
+        "title": p.title,
+        "problem_type": p.problem_type,
+        "severity": p.severity,
+        "source": p.source,
+        "product_id": p.product_id,
+        "product_model": p.product_model,
+        "description": p.description,
+        "suggested_action": p.suggested_action,
+        "status": p.status,
+        "reporter": p.reporter,
+        "reported_at": p.reported_at,
+        "related_change_no": p.related_change_no,
+        "remark": p.remark,
+    }
+
+
+def _param_dict(p: models.ProcessParameter) -> dict:
+    return {
+        "id": p.id,
+        "param_code": p.param_code,
+        "param_name": p.param_name,
+        "param_type": p.param_type,
+        "unit": p.unit,
+        "category": p.category,
+        "default_value": p.default_value,
+        "min_value": p.min_value,
+        "max_value": p.max_value,
+        "description": p.description,
+        "status": p.status,
+    }

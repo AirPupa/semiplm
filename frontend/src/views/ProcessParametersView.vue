@@ -2,7 +2,7 @@
   <div class="panel list-panel" v-loading="loading">
     <div class="toolbar">
       <div>
-        <strong>工艺参数库</strong>
+        <strong>工艺参数</strong>
         <span class="muted"> · CD、Overlay、刻蚀深度、膜厚、片阻、LIV/IV、Wafer Map 等工艺参数定义</span>
       </div>
       <div class="toolbar-actions">

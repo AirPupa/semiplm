@@ -31,7 +31,7 @@ async function loadAll(): Promise<void> {
   if (_loadingPromise) return _loadingPromise
   _loadingPromise = (async () => {
     try {
-      const res = await getDictionaryItems({ page: 1, page_size: 500 })
+      const res = await getDictionaryItems({ page: 1, page_size: 5000 })
       const items: any[] = res.items ?? res
       _cache = {}
       for (const item of items) {

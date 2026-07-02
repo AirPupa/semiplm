@@ -1,0 +1,141 @@
+{
+  "captured_at": "2026-07-02",
+  "purpose": "Candidate PLM-to-MES synchronization scope derived from MES modeling discovery.",
+  "security_note": "This file stores design mapping only. It stores no MES credential.",
+  "syncPolicy": {
+    "sourceOfTruth": "PLM owns design, approval, version, release package, and audit. MES owns execution and runtime state.",
+    "writePolicy": "No production MES write until sandbox, idempotency, approval gate, and rollback are implemented.",
+    "idempotencyKey": ["objectType", "objectName", "objectVersion", "ecnNo"],
+    "minimumReleaseState": ["approved", "released", "frozen"]
+  },
+  "candidates": [
+    {
+      "priority": 1,
+      "plmDomain": "Product",
+      "plmObject": "Product / ProductVersion",
+      "mesObject": "ProductDef.basicInfo",
+      "direction": "PLM_TO_MES",
+      "decision": "sync",
+      "fields": [
+        {"plm": "model", "mes": "productDefName", "required": true},
+        {"plm": "version", "mes": "productDefVersion", "required": true},
+        {"plm": "name", "mes": "description", "required": false},
+        {"plm": "product_type", "mes": "productType", "required": true},
+        {"plm": "lifecycle or production_type", "mes": "productionType", "required": true},
+        {"plm": "product_group", "mes": "productGroupName", "required": true},
+        {"plm": "owner", "mes": "owner", "required": false},
+        {"plm": "gross_die", "mes": "grossDie", "required": false}
+      ],
+      "notes": "ProductDef is the first write candidate because it defines the product/version identity used by downstream MES modeling."
+    },
+    {
+      "priority": 1,
+      "plmDomain": "Process",
+      "plmObject": "ProcessRoute / ProcessStep",
+      "mesObject": "ProcessFlow / ProductDef.processFlowName/processFlowVersion / Content",
+      "direction": "PLM_TO_MES",
+      "decision": "sync_after_mapping",
+      "fields": [
+        {"plm": "route.name", "mes": "processFlowName", "required": true},
+        {"plm": "route.version", "mes": "processFlowVersion", "required": true},
+        {"plm": "steps.sequence", "mes": "sequence/order", "required": true},
+        {"plm": "steps.operation", "mes": "processStepName or operation", "required": true},
+        {"plm": "steps.key_params", "mes": "Content/Parameter", "required": false}
+      ],
+      "notes": "Needs MES field-level payload discovery before write because detail modules use items plus idsForDeleted/idsInUpdate/idsInAdd."
+    },
+    {
+      "priority": 1,
+      "plmDomain": "BOM",
+      "plmObject": "BomHeader / BomItem",
+      "mesObject": "ProductDef.bomName / bomVersion and BOM",
+      "direction": "PLM_TO_MES",
+      "decision": "sync",
+      "fields": [
+        {"plm": "bom_type + product.model", "mes": "bomName", "required": true},
+        {"plm": "version", "mes": "bomVersion", "required": false},
+        {"plm": "items.material_code", "mes": "BOM item material", "required": true},
+        {"plm": "items.quantity", "mes": "BOM item quantity", "required": true},
+        {"plm": "items.process_step", "mes": "step binding", "required": false}
+      ],
+      "notes": "BOM should be released before ProductDef points to it."
+    },
+    {
+      "priority": 1,
+      "plmDomain": "ProcessControl",
+      "plmObject": "ProcessParameter / route-step control values",
+      "mesObject": "Parameter / Measure / Qtime / Contamination",
+      "direction": "PLM_TO_MES",
+      "decision": "sync_after_model_extension",
+      "fields": [
+        {"plm": "parameter_name", "mes": "Parameter.parameterName", "required": true},
+        {"plm": "target_value/min/max/unit", "mes": "Parameter/Measure value fields", "required": true},
+        {"plm": "step", "mes": "processFlowSeqName", "required": true},
+        {"plm": "qtime_rule", "mes": "Qtime items", "required": false},
+        {"plm": "contamination_level", "mes": "Contamination items", "required": false}
+      ],
+      "notes": "Current PLM has process parameter library but not yet enough route-step scoped control tables."
+    },
+    {
+      "priority": 2,
+      "plmDomain": "Reticle",
+      "plmObject": "Reticle set reference",
+      "mesObject": "ProductDef.reticleSetName",
+      "direction": "PLM_TO_MES",
+      "decision": "sync_for_lithography_products",
+      "fields": [
+        {"plm": "reticle_set_name", "mes": "reticleSetName", "required": false}
+      ],
+      "notes": "Needed for lithography-heavy products; should not be mandatory for all product classes."
+    },
+    {
+      "priority": 2,
+      "plmDomain": "TestAndBin",
+      "plmObject": "Bin strategy",
+      "mesObject": "ProductDef.binName",
+      "direction": "PLM_TO_MES",
+      "decision": "sync_after_quality_modeling",
+      "fields": [
+        {"plm": "bin_strategy", "mes": "binName", "required": false},
+        {"plm": "package_qty", "mes": "packageQty", "required": false}
+      ],
+      "notes": "Requires quality/test ownership decision."
+    },
+    {
+      "priority": 2,
+      "plmDomain": "DummyWafer",
+      "plmObject": "Dummy use and film-thickness policy",
+      "mesObject": "ProductDef.dummyMaxUseTime / dummyThkParam / dummyThkLimit",
+      "direction": "PLM_TO_MES",
+      "decision": "sync_after_process_owner_approval",
+      "fields": [
+        {"plm": "dummy_max_use_time", "mes": "dummyMaxUseTime", "required": false},
+        {"plm": "dummy_thk_param", "mes": "dummyThkParam", "required": false},
+        {"plm": "dummy_thk_limit", "mes": "dummyThkLimit", "required": false}
+      ],
+      "notes": "Semiconductor-specific process control field group; add to PLM model only if fab process owners confirm ownership."
+    },
+    {
+      "priority": 3,
+      "plmDomain": "EquipmentRecipe",
+      "plmObject": "Equipment recipe reference",
+      "mesObject": "EquipmentRecipe",
+      "direction": "MES_TO_PLM_REFERENCE",
+      "decision": "reference_and_reconcile_only_initially",
+      "fields": [
+        {"plm": "equipment_name", "mes": "equipmentName", "required": true},
+        {"plm": "equipment_recipe_name", "mes": "equipmentRecipeName", "required": true},
+        {"plm": "recipe_name", "mes": "recipeName", "required": true},
+        {"plm": "equipment_recipe_mode", "mes": "equipmentRecipeMode", "required": true}
+      ],
+      "notes": "Do not create or update equipment recipes from PLM in early phases. Treat them as MES-owned runtime/configuration objects."
+    }
+  ],
+  "statusMappingDraft": {
+    "PLM_DRAFT": "Unfrozen",
+    "PLM_UNDER_REVIEW": "Unfrozen",
+    "PLM_RELEASED": "Frozen",
+    "PLM_ACTIVE": "Active",
+    "PLM_OBSOLETE": "Invalid"
+  }
+}

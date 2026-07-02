@@ -127,10 +127,10 @@
 
 | 功能 | 后端 router | 前端 api | 前端页面 |
 | --- | --- | --- | --- |
-| 工艺路线/工序 | `routers/processes.py` | `api/processes.ts` | `views/ProcessView.vue` |
+| 工艺流程/标准工序 | `routers/processes.py` | `api/processes.ts` | `views/ProcessView.vue` |
 | 工艺发布 | `routers/processes.py` | `api/processes.ts` | `views/ProcessView.vue` |
 | 工艺版本历史 | `routers/processes.py` | `api/processes.ts` | `views/ProcessView.vue` |
-| 工艺参数库 | `routers/processes.py` | `api/processes.ts` | `views/ProcessParametersView.vue` |
+| 工艺参数 | `routers/processes.py` | `api/processes.ts` | `views/ProcessParametersView.vue` |
 | PR 问题报告 | `routers/processes.py` | `api/processes.ts` | `views/PRProblemView.vue` |
 
 ### 工程变更
@@ -204,7 +204,7 @@
 | 工程变更影响分析/升版 | `services/change.py` | 影响分析、ECA 关闭、生成新版本对象 |
 | 版本号生成 | `services/versioning.py` | BOM/文档/工艺下一版号、有效 BOM 判断 |
 | 集成队列创建 | `services/integration.py` | ERP/MES/QMS 队列事件 |
-| 工艺与 BOM 绑定校验 | `services/process.py` | 工艺路线可编辑校验、工序绑定校验 |
+| 工艺与 BOM 绑定校验 | `services/process.py` | 工艺流程可编辑校验、工序绑定校验 |
 | 轻量迁移/启动修正 | `services/bootstrap.py` | startup 时 schema 补齐和主数据规范化 |
 
 ## 维护规则

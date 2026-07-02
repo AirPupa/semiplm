@@ -7,14 +7,8 @@ from .helpers import day_before, today_text
 
 
 def is_current_effective_bom(row: models.BomHeader) -> bool:
-    today = today_text()
-    if row.status != "已发布":
-        return False
-    if row.effective_date and row.effective_date > today:
-        return False
-    if row.expiry_date and row.expiry_date < today:
-        return False
-    return True
+    # BomHeader 已无 status/effective_date/expiry_date 字段，按 bom_state 判断
+    return row.bom_state == "Active"
 
 
 def next_revision(value: str) -> str:
@@ -36,11 +30,10 @@ def next_revision(value: str) -> str:
 
 
 def next_unique_bom_version(db: Session, source: models.BomHeader) -> str:
-    version = next_revision(source.version)
+    version = next_revision(source.bom_version)
     while db.query(models.BomHeader.id).filter(
-        models.BomHeader.product_id == source.product_id,
-        models.BomHeader.bom_type == source.bom_type,
-        models.BomHeader.version == version,
+        models.BomHeader.bom_name == source.bom_name,
+        models.BomHeader.bom_version == version,
     ).first():
         version = next_revision(version)
     return version
@@ -56,44 +49,26 @@ def next_unique_document_no(db: Session, source: models.Document, version: str) 
     return doc_no
 
 
-def next_unique_process_version(db: Session, source: models.ProcessRoute) -> str:
-    version = next_revision(source.version)
-    while db.query(models.ProcessRoute.id).filter(
-        models.ProcessRoute.product_id == source.product_id,
-        models.ProcessRoute.version == version,
+def next_unique_process_version(db: Session, source: models.ProcessFlow) -> str:
+    version = next_revision(source.process_flow_version)
+    while db.query(models.ProcessFlow.id).filter(
+        models.ProcessFlow.process_flow_name == source.process_flow_name,
+        models.ProcessFlow.process_flow_version == version,
     ).first():
         version = next_revision(version)
     return version
 
 
-def next_unique_route_no(db: Session, source: models.ProcessRoute, version: str) -> str:
-    base_no = f"{source.route_no}-R{version}"
+def next_unique_route_no(db: Session, source: models.ProcessFlow, version: str) -> str:
+    base_no = f"{source.process_flow_name}-R{version}"
     route_no = base_no
     suffix = 1
-    while db.query(models.ProcessRoute.id).filter(models.ProcessRoute.route_no == route_no).first():
+    while db.query(models.ProcessFlow.id).filter(models.ProcessFlow.process_flow_name == route_no).first():
         suffix += 1
         route_no = f"{base_no}-{suffix}"
     return route_no
 
 
 def close_previous_effective_boms(db: Session, bom: models.BomHeader) -> list[dict]:
-    cutoff = day_before(bom.effective_date or today_text())
-    rows = (
-        db.query(models.BomHeader)
-        .filter(
-            models.BomHeader.id != bom.id,
-            models.BomHeader.product_id == bom.product_id,
-            models.BomHeader.bom_type == bom.bom_type,
-            models.BomHeader.status == "已发布",
-        )
-        .all()
-    )
-    closed = []
-    for row in rows:
-        if row.effective_date and bom.effective_date and row.effective_date > bom.effective_date:
-            continue
-        if row.expiry_date and row.expiry_date <= cutoff:
-            continue
-        row.expiry_date = cutoff
-        closed.append({"id": row.id, "type": row.bom_type, "version": row.version, "expiry_date": row.expiry_date})
-    return closed
+    # BomHeader 已无 effective_date/expiry_date/status 字段，返回空列表
+    return []

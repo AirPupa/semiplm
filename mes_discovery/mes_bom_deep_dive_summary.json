@@ -1,0 +1,86 @@
+{
+  "generatedAt": "2026-07-02T04:11:45.187Z",
+  "boms": [
+    {
+      "bomName": "BOM-NLA-001",
+      "bomVersion": "001",
+      "bomState": "Active",
+      "owner": "caijian.qu",
+      "sectionCounts": {
+        "Consumable": 1,
+        "Durable": 0,
+        "Product": 0
+      }
+    },
+    {
+      "bomName": "BOM-NWBL0827",
+      "bomVersion": "001",
+      "bomState": "Active",
+      "owner": "caijian.qu",
+      "sectionCounts": {
+        "Consumable": 1,
+        "Durable": 0,
+        "Product": 0
+      }
+    }
+  ],
+  "aggregate": {
+    "Consumable": {
+      "bomsWithRows": 2,
+      "totalRows": 2,
+      "maxRows": 1,
+      "fieldCount": 11,
+      "fieldNames": [
+        "id",
+        "idx",
+        "bomName",
+        "bomVersion",
+        "materialType",
+        "materialDefName",
+        "materialDefVersion",
+        "requireQuantity",
+        "unit",
+        "processStepName",
+        "processStepVersion"
+      ]
+    },
+    "Durable": {
+      "bomsWithRows": 0,
+      "totalRows": 0,
+      "maxRows": 0,
+      "fieldCount": 11,
+      "fieldNames": [
+        "id",
+        "idx",
+        "bomName",
+        "bomVersion",
+        "materialType",
+        "materialDefName",
+        "materialDefVersion",
+        "requireQuantity",
+        "unit",
+        "processStepName",
+        "processStepVersion"
+      ]
+    },
+    "Product": {
+      "bomsWithRows": 0,
+      "totalRows": 0,
+      "maxRows": 0,
+      "fieldCount": 11,
+      "fieldNames": [
+        "id",
+        "idx",
+        "bomName",
+        "bomVersion",
+        "materialType",
+        "materialDefName",
+        "materialDefVersion",
+        "requireQuantity",
+        "unit",
+        "processStepName",
+        "processStepVersion"
+      ]
+    }
+  }
+}
